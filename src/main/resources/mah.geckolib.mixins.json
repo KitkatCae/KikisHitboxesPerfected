@@ -1,0 +1,16 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "exp.CCnewmods.mah.mixin.geckolib",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+  ],
+  "client": [
+    "DynamicGeoEntityRendererMixin",
+    "GeoEntityRendererMixin",
+    "GeoReplacedEntityRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
