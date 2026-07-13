@@ -1,0 +1,6 @@
+{
+  "entity": "minecraft:ghast",
+  "anchors": [
+    { "bone": "root/body", "id": "body", "seed": { "width": 4, "height": 4, "depth": 4 } }
+  ]
+}

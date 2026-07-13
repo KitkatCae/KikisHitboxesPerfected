@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "exp.CCnewmods.khp.mixin.vs2",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "EntityShipCollisionUtilsMixin",
+    "EntityShipCollisionUtilsDiagnosticMixin"
+  ],
+  "client": [
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

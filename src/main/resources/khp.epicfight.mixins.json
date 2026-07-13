@@ -1,0 +1,17 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "exp.CCnewmods.khp.mixin.epicfight",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+    "EpicFightColliderMixin",
+    "EpicFightOBBColliderMixin",
+    "EpicFightLineColliderMixin"
+  ],
+  "client": [
+    "PatchedLivingEntityRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

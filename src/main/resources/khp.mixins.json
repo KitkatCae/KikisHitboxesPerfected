@@ -1,0 +1,26 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "exp.CCnewmods.khp.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "refmap": "khp.refmap.json",
+  "mixins": [
+    "ProjectileUtilMixin",
+    "EntityCanBeCollidedWithMixin",
+    "EntityCollideEntityShapesMixin",
+    "EntityMakeBoundingBoxMixin"
+  ],
+  "client": [
+    "client.EntityHitboxOverlayMixin",
+    "client.EntityRenderDispatcherMixin",
+    "client.EntityRendererCullMixin",
+    "client.LayerDefinitionMixin",
+    "client.LivingEntityRendererMixin",
+    "client.ModelPartCubeMixin",
+    "client.ModelPartMixin",
+    "client.PartDefinitionMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

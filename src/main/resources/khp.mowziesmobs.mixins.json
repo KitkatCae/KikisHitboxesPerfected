@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "exp.CCnewmods.khp.mixin.mowziesmobs",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+  ],
+  "client": [
+    "MowzieGeoEntityRendererMixin",
+    "MowzieAdvancedModelRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

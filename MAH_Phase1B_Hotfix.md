@@ -13,7 +13,7 @@ no visible sign anything was wrong. Confirmed directly from `latest.log`:
 ```
 Caused by: java.lang.NullPointerException: Cannot invoke "net.minecraftforge.fml.ModList.isLoaded(String)"
 because the return value of "net.minecraftforge.fml.ModList.get()" is null
-    at exp.CCnewmods.mah.mixin.citadel.CitadelMixinPlugin.shouldApplyMixin(CitadelMixinPlugin.java:37)
+    at exp.CCnewmods.khp.mixin.citadel.CitadelMixinPlugin.shouldApplyMixin(CitadelMixinPlugin.java:37)
 ```//same for lionfishapi
 
 ## Fix

@@ -1,0 +1,14 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "exp.CCnewmods.khp.mixin.alexscaves",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+  ],
+  "client": [
+    "FerrouslimeRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
