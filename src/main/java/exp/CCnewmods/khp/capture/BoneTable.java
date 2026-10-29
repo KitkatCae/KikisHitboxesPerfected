@@ -7,25 +7,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Stable bone-name ↔ id mapping for one entity key.
- *
- * <p>Replaces the old AccurateHitboxes convention of "bone index = position in the
- * OBB list", which was order-fragile: Misanthrope Core's {@code WoundEntry.boneIndex}
- * gets a real identity to point at. Ids are assigned in first-encounter order, which
- * for a given model is the deterministic pre-order render walk; the <b>name</b> is the
- * canonical identity — ids are a compact wire/NBT form and tables are synced whole in
- * later phases, so cross-session id drift is harmless as long as names round-trip.
- *
- * <p>Bone names: vanilla parts use the slash-joined child path stamped at bake time
- * (e.g. {@code root/body/head}); GeckoLib bones use their Blockbench name directly
- * (unique per model by Blockbench's own constraint), matching the conventions already
- * used by Misanthrope Core's CorpseDefinitions.
- *
- * <p>Thread-safe; capture writes on the render thread, gameplay reads elsewhere.
+ * Stable bone-name ↔ id mapping for one entity key. Names are the identity; ids are first-encounter order and
+ * can differ between sessions. Vanilla names are paths like {@code root/body/head}; GeckoLib uses bone names.
+ * Thread-safe.
  */
 public final class BoneTable {
 
-    /** Returned by {@link #idFor} once the (absurd) 32k-bone budget is exhausted. */
     public static final short OVERFLOW_ID = Short.MAX_VALUE;
 
     private final List<String> names = new ArrayList<>();
@@ -50,7 +37,6 @@ public final class BoneTable {
         return names.size();
     }
 
-    /** Snapshot of all names in id order, for export/sync/diagnostics. */
     public synchronized List<String> snapshotNames() {
         return List.copyOf(names);
     }

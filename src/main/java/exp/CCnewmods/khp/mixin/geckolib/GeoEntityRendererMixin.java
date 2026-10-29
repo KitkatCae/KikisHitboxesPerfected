@@ -14,17 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Captures every Geo bone at renderRecursively HEAD, where the pose is the parent
- * bone space; the manager replicates GeckoLib's own bone prelude and per-cube pivot
- * math (verified verbatim from the pinned GeckoLib jar's RenderUtils). Recursion goes
- * through {@code this.renderRecursively}, so child bones re-enter this injection with
- * the correct stacked pose. Third-party target: remap=false, no refmap in config.
- *
- * <p>Known gap (by design): renderer subclasses overriding renderRecursively without
- * calling super bypass capture — the debug renderer makes those visible; the phase-3
- * blueprint source covers them.
- */
+/** Captures each Geo bone at {@code renderRecursively} HEAD. Subclasses that don't call super aren't captured. */
 @Mixin(value = GeoEntityRenderer.class, remap = false)
 public abstract class GeoEntityRendererMixin<T extends Entity & GeoAnimatable> {
 

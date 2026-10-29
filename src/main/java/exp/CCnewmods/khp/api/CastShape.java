@@ -4,30 +4,16 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * An arbitrary volume for {@link MahApi#shapecast} — a cheaper alternative to
- * sweeping hundreds of individual raycasts when something (a shockwave, a cone-shaped
- * breath attack, an expanding ring) needs to hit everything it touches at once.
- *
- * <p>Callers build one of the concrete shapes below (in world space) and hand it to
- * {@code shapecast} for a single moment — an <i>expanding</i> shockwave is expressed
- * by the caller re-calling {@code shapecast} each tick with a larger
- * {@link SphereShape#radius()}, not by this interface animating anything itself, the
- * same way {@link MahApi#raycast} takes one origin/direction snapshot rather than a
- * moving ray.
- *
- * <p>Implementations provide a point-containment test ({@link #contains(Vec3)}) and a
- * coarse world-space {@link #boundingBox()} for broad-phase rejection before the
- * (potentially per-shape-expensive) containment test runs per candidate point.
+ * A world-space volume for {@link MahApi#shapecast}. For an expanding shape, call {@code shapecast} each tick
+ * with new parameters.
  */
 public interface CastShape {
 
-    /** True if {@code worldPoint} is inside (or on the surface of) this shape. */
     boolean contains(Vec3 worldPoint);
 
-    /** Conservative world-space AABB fully containing this shape — broad-phase only, never used for the actual hit decision. */
+    /** Broad-phase only. */
     AABB boundingBox();
 
-    /** Solid sphere. */
     record SphereShape(Vec3 center, double radius) implements CastShape {
         @Override
         public boolean contains(Vec3 p) {
@@ -41,12 +27,7 @@ public interface CastShape {
         }
     }
 
-    /**
-     * Oriented box — {@code halfExtents} along the box's own local X/Y/Z, rotated by
-     * {@code rotation} (a normalized forward/up/right-style basis is overkill for
-     * most callers; this takes the box's world-space axes directly since that's what
-     * a shockwave/attack volume's caller almost always already has computed).
-     */
+    /** Axes are given in world space. */
     record BoxShape(Vec3 center, Vec3 halfExtents, Vec3 axisX, Vec3 axisY, Vec3 axisZ) implements CastShape {
         @Override
         public boolean contains(Vec3 p) {
@@ -57,18 +38,13 @@ public interface CastShape {
 
         @Override
         public AABB boundingBox() {
-            // Conservative: sphere-of-the-box radius in every direction, cheap and
-            // always correct regardless of rotation (tight AABB of a rotated box
-            // needs the actual corners; broad-phase doesn't need it tight).
+            // Bounding sphere: valid for any rotation.
             double r = halfExtents.length();
             return new AABB(center.x - r, center.y - r, center.z - r, center.x + r, center.y + r, center.z + r);
         }
     }
 
-    /**
-     * Solid cone: apex at {@code apex}, opening along {@code axis} (normalized) for
-     * {@code height}, with half-angle {@code halfAngleRadians} at the apex.
-     */
+    /** Apex, normalized axis, height and half-angle. */
     record ConeShape(Vec3 apex, Vec3 axis, double height, double halfAngleRadians) implements CastShape {
         @Override
         public boolean contains(Vec3 p) {
@@ -90,10 +66,7 @@ public interface CastShape {
         }
     }
 
-    /**
-     * Torus ("donut"): center circle of radius {@code majorRadius} in the plane
-     * perpendicular to {@code axis}, with circular cross-section radius {@code minorRadius}.
-     */
+    /** Ring of radius {@code majorRadius} perpendicular to {@code axis}, tube radius {@code minorRadius}. */
     record TorusShape(Vec3 center, Vec3 axis, double majorRadius, double minorRadius) implements CastShape {
         @Override
         public boolean contains(Vec3 p) {
@@ -111,12 +84,7 @@ public interface CastShape {
         }
     }
 
-    /**
-     * Flat ring (annulus) — a donut flattened to near-zero cross-section thickness in
-     * the plane perpendicular to {@code axis}, with independent inner and outer radii
-     * (a true torus's minor radius is always the same all the way around; this is the
-     * "expanding shockwave ring on the ground" shape a torus can't cleanly express).
-     */
+    /** Flat annulus perpendicular to {@code axis}. */
     record RingShape(Vec3 center, Vec3 axis, double innerRadius, double outerRadius, double thickness) implements CastShape {
         @Override
         public boolean contains(Vec3 p) {
@@ -129,9 +97,6 @@ public interface CastShape {
 
         @Override
         public AABB boundingBox() {
-            // Axis-independent conservative bound (sphere of the ring's full extent) —
-            // the tight box would need to know axis orientation; broad-phase doesn't
-            // need it tight, just correct for any axis.
             double r = outerRadius + thickness * 0.5;
             return new AABB(center.x - r, center.y - r, center.z - r, center.x + r, center.y + r, center.z + r);
         }

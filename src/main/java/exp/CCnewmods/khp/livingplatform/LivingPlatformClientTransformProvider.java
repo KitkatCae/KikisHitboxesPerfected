@@ -6,6 +6,7 @@ import exp.CCnewmods.khp.capture.HitboxStore;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import org.joml.Matrix4f;
+import org.joml.Quaterniond;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3f;
@@ -20,30 +21,12 @@ import javax.annotation.Nullable;
 import java.util.UUID;
 
 /**
- * Client-side counterpart to {@link LivingPlatformServerTransformProvider} — see
- * {@code KHP_Phase2E_Design.md} §2.2/§6.3. VS2's {@code provideNextRenderTransform}
- * is called every rendered frame with a real {@code partialTick}, which is exactly
- * the sub-tick-smooth hook the "tentacles sway, blocks sway with them" requirement
- * needs — no bespoke interpolation system required, since the client render thread
- * is already producing a fresh interpolated bone pose every frame for any tracked
- * mob in range ({@code HitboxCaptureManager}), and
- * {@link MahApi#getLivingPlatformBoneTransform} reads whatever the most recent one
- * is. {@code partialTick} itself isn't consulted directly here — it doesn't need to
- * be, since the pose it would otherwise be used to interpolate between is already
- * pre-interpolated for us by the same render-thread capture that feeds MAH's own
- * debug wireframe and raycasts.
- *
- * <p>{@code provideNextTransform} (the once-per-tick reconciliation-against-network
- * hook, not per-frame) uses the same resolution — deliberately not trying to be any
- * smarter than the render hook, since both ultimately read the same live snapshot.
- *
- * <p><b>{@code positionInModel} set explicitly</b> — same fix and same reasoning as
- * {@link LivingPlatformServerTransformProvider}'s own javadoc (§18/§19, the
- * 0.5-block offset). {@code ChunkClaim} is a real synced ship property, so this
- * side computes the exact same value independently rather than needing it passed
- * over the custom sync packet.
+ * Client counterpart of {@link LivingPlatformServerTransformProvider}, computed the same way from the client's own
+ * data. The client captures an interpolated pose every frame, so {@code partialTick} isn't needed.
  */
 public final class LivingPlatformClientTransformProvider implements ClientShipTransformProvider {
+
+    private static final Quaterniond RIG_ROLL_FLIP = new Quaterniond().rotateZ(Math.PI);
 
     private final UUID entityUuid;
     private final String boneName;
@@ -55,7 +38,7 @@ public final class LivingPlatformClientTransformProvider implements ClientShipTr
         Minecraft mc = Minecraft.getInstance();
         Vector3i centerBlock = ship.getChunkClaim().getCenterBlockCoordinates(
                 VSGameUtilsKt.getYRange(mc.level), new Vector3i());
-        // NOT centerBlock + 0.5 — see KHP_Phase2E_Design.md §23 (same fix as server side).
+        // Not centerBlock + 0.5 (as on the server).
         this.seedCenter = new Vector3d(centerBlock.x, centerBlock.y, centerBlock.z);
     }
 
@@ -78,14 +61,7 @@ public final class LivingPlatformClientTransformProvider implements ClientShipTr
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null) return null;
 
-        // ClientLevel has no public getEntity(UUID) — only getEntity(int) (confirmed
-        // via javap). Fast path: HitboxStore already keys snapshots by UUID and every
-        // snapshot carries the entity's network id (EntityHitboxSnapshot#entityId,
-        // documented there for exactly this kind of cheap lookup) — free almost
-        // always, since anything worth driving a visible swaying platform for is
-        // also actively being captured for rendering. Fallback: linear scan of
-        // entitiesForRendering() (public, confirmed) for the rare case an entity is
-        // tracked by the ship but not currently in this client's render set.
+        // ClientLevel only has getEntity(int): try the snapshot's network id, then scan.
         Entity entity = null;
         EntityHitboxSnapshot snap = HitboxStore.get(entityUuid);
         if (snap != null) {
@@ -109,20 +85,19 @@ public final class LivingPlatformClientTransformProvider implements ClientShipTr
         Quaternionf rotationF = new Quaternionf();
         boneWorld.getUnnormalizedRotation(rotationF);
 
-        // VS2's BodyTransformImpl requires |lengthSquared() - 1.0| < 1e-12 (bytecode-confirmed
-        // this session) — far tighter than float precision (~1e-7) can ever satisfy on its own.
-        // Converting to Quaterniond first and normalizing THAT (double precision) is what
-        // actually closes the gap; normalizing the float quaternion alone (what the previous
-        // fix did) wasn't enough — the crash recurred with a quaternion that LOOKED unit at
-        // 4-significant-figure precision but wasn't within 1e-12. See KHP_Phase2E_Design.md §12.
-        org.joml.Quaterniond rotation = new org.joml.Quaterniond(rotationF.x, rotationF.y, rotationF.z, rotationF.w);
+        // VS2 requires |length² - 1| < 1e-12, tighter than float, so normalize as doubles.
+        Quaterniond rotation = new Quaterniond(rotationF.x, rotationF.y, rotationF.z, rotationF.w);
         rotation.normalize();
         if (!isFinite(rotation)) {
-            // Same insurance policy as LivingPlatformServerTransformProvider — see that
-            // class's javadoc for why, and KHP_Phase2E_Design.md §12 for the actual bug
-            // this is guarding against (should be fixed now, kept as a backstop).
             return null;
         }
+
+        double yawRad = Math.toRadians(180.0 - entity.getYRot());
+        Quaterniond yawQ = new Quaterniond().rotateY(yawRad);
+        Quaterniond yawQInverse = new Quaterniond(yawQ).conjugate();
+        Quaterniond correction = new Quaterniond(yawQ).mul(RIG_ROLL_FLIP).mul(yawQInverse);
+        rotation = new Quaterniond(correction).mul(rotation);
+        rotation.normalize();
 
         return baseTransform.toBuilder()
                 .position(new org.joml.Vector3d(translation.x, translation.y, translation.z))
@@ -131,7 +106,7 @@ public final class LivingPlatformClientTransformProvider implements ClientShipTr
                 .build();
     }
 
-    private static boolean isFinite(org.joml.Quaterniond q) {
+    private static boolean isFinite(Quaterniond q) {
         return Double.isFinite(q.x) && Double.isFinite(q.y) && Double.isFinite(q.z) && Double.isFinite(q.w)
                 && Math.abs(q.lengthSquared() - 1.0) < 1.0e-9;
     }

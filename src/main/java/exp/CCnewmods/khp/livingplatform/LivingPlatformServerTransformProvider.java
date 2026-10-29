@@ -20,49 +20,20 @@ import javax.annotation.Nullable;
 import java.util.UUID;
 
 /**
- * Server-authoritative {@link ServerShipTransformProvider} for one living-platform
- * anchor — see {@code KHP_Phase2E_Design.md} §6.3/§6.4.
+ * Drives a living-platform ship from its anchor bone's transform each tick. Returns {@code null} (hold position)
+ * when there's no pose data. {@code positionInModel} is the seed volume's center plus the odd-quadrant
+ * correction (see {@link LivingPlatformSeedShape#centroidOffsetX}).
  *
- * <p>Reads the anchor bone's current world transform via
- * {@link MahApi#getLivingPlatformBoneTransform}, which already implements the
- * live→blueprint fallback chain (§3). If that returns {@code null} (genuinely no
- * data — {@link LivingPlatformShipManager#tickFreezeState} is responsible for
- * halting the entity in this case, not this class), this provider returns
- * {@code null} for the tick, which VS2 treats as "no update" — the ship simply
- * holds its last transform, matching the entity being frozen in place at the
- * same instant.
- *
- * <p>{@code nextVel}/{@code nextOmega} are derived from the bone's frame-to-frame
- * delta (Q2E-4: real momentum handoff, not purely kinematic) using a fixed
- * {@code 1/20s} tick assumption — VS2 calls
- * {@link #provideNextTransformAndVelocity} once per physics tick, so this matches
- * the server tick rate directly. Angular velocity is derived from the shortest-arc
- * relative rotation between this tick's and last tick's orientation, converted to
- * an axis-angle rate. Not yet playtested for feel — the fixed-dt assumption and
- * the raw per-tick delta (no smoothing) are the first things to revisit if the
- * platform feels jerky under fast animation.
- *
- * <p><b>{@code positionInModel} set explicitly</b> (§18/§19 — fixes a consistent
- * 0.5-block offset seen in-game on all three axes). Previously left unset, which
- * meant it silently inherited whatever pivot {@code createNewShipAtBlock} defaulted
- * to at creation time — an assumption that was never actually verified and turned
- * out to not line up with where {@link LivingPlatformShipManager#seedVolume}
- * actually centers the seed blocks. Now computed the same way {@code seedVolume}
- * computes its own center ({@code ChunkClaim.getCenterBlockCoordinates}, a real
- * {@code BlockPos}-style integer whose own true geometric center is {@code +0.5}
- * on every axis — standard Minecraft block-grid convention, a block at integer
- * {@code x} spans {@code [x, x+1)}) and cached once at construction, since a
- * ship's chunk claim never changes after creation.
- *
- * <p>One instance per anchor, held for the lifetime of that anchor's ship — the
- * {@code lastPosition}/{@code lastRotation} fields are safe as plain (non-atomic)
- * fields because VS2 only ever calls this from the single server/physics tick
- * thread, same threading assumption {@code HitboxStore}'s own javadoc already
- * documents for integrated-server reads.
+ * <p>Rotation: models render under {@code rotateY(180 - yaw)} and GeckoLib rigs add a 180° roll, so the ship
+ * rotation is {@code yawQ · RIG_ROLL_FLIP · yawQ⁻¹ · boneRotation} with {@code yawQ = rotateY(180° - getYRot())}.
+ * TODO: uses getYRot, not yBodyRot; velocity has no smoothing.
  */
 public final class LivingPlatformServerTransformProvider implements ServerShipTransformProvider {
 
     private static final double TICK_SECONDS = 1.0 / 20.0;
+
+    /** Self-inverse; shared, so copy before mutating. */
+    private static final Quaterniond RIG_ROLL_FLIP = new Quaterniond().rotateZ(Math.PI);
 
     private final UUID entityUuid;
     private final String boneName;
@@ -74,17 +45,17 @@ public final class LivingPlatformServerTransformProvider implements ServerShipTr
     @Nullable
     private Quaterniond lastRotation;
 
-    public LivingPlatformServerTransformProvider(UUID entityUuid, String boneName, ServerLevel level, ServerShip ship) {
+    public LivingPlatformServerTransformProvider(UUID entityUuid, String boneName, ServerLevel level, ServerShip ship,
+                                                  LivingPlatformSeedShape seedShape) {
         this.entityUuid = entityUuid;
         this.boneName = boneName;
         this.level = level;
         Vector3i centerBlock = ship.getChunkClaim().getCenterBlockCoordinates(VSGameUtilsKt.getYRange(level), new Vector3i());
-        // NOT centerBlock + 0.5 — see KHP_Phase2E_Design.md §23. The seedVolume loop
-        // (-halfW .. width-halfW) already centers the whole symmetric volume exactly
-        // ON the raw integer centerBlock; +0.5 would be correct for a single block
-        // cell's own center, but this is the center of the whole multi-block volume,
-        // which is a different quantity. That extra +0.5 was itself the bug.
-        this.seedCenter = new Vector3d(centerBlock.x, centerBlock.y, centerBlock.z);
+        // Not centerBlock + 0.5: the seed loop centers the volume on the integer centerBlock.
+        this.seedCenter = new Vector3d(
+                centerBlock.x + seedShape.centroidOffsetX(),
+                centerBlock.y + seedShape.centroidOffsetY(),
+                centerBlock.z + seedShape.centroidOffsetZ());
     }
 
     @Override
@@ -95,7 +66,7 @@ public final class LivingPlatformServerTransformProvider implements ServerShipTr
         if (entity == null) return null;
 
         Matrix4f boneWorld = MahApi.getLivingPlatformBoneTransform(entity, boneName);
-        if (boneWorld == null) return null; // no data at all — hold last transform, entity is being frozen elsewhere
+        if (boneWorld == null) return null; // no data: hold last transform
 
         Vector3f translationF = new Vector3f();
         boneWorld.getTranslation(translationF);
@@ -103,29 +74,24 @@ public final class LivingPlatformServerTransformProvider implements ServerShipTr
         boneWorld.getUnnormalizedRotation(rotationF);
 
         Vector3d position = new Vector3d(translationF.x, translationF.y, translationF.z);
-        // No manual offset here — see KHP_Phase2E_Design.md §23. The earlier -0.5
-        // world-space correction was rotation-blind (fixed one axis by coincidence,
-        // broke another depending on facing) because it's applied in WORLD space,
-        // not local space. The real fix is entirely in positionInModel above, which
-        // is correctly rotated by the ship's own orientation before combining with
-        // this raw, uncorrected bone position.
+        // No world-space offset here; it would be rotation-blind. positionInModel handles it.
 
-        // VS2's BodyTransformImpl requires |lengthSquared() - 1.0| < 1e-12 (bytecode-confirmed
-        // this session) — far tighter than float precision (~1e-7) can ever satisfy. Normalizing
-        // must happen AFTER converting to Quaterniond, not on the float quaternion beforehand —
-        // that was the first fix's mistake, and the crash recurred with a quaternion that looked
-        // unit at 4-significant-figure precision but wasn't within 1e-12. See
-        // KHP_Phase2E_Design.md §12.
+        // VS2 requires |length² - 1| < 1e-12, tighter than float, so normalize as doubles.
         Quaterniond rotation = new Quaterniond(rotationF.x, rotationF.y, rotationF.z, rotationF.w);
         rotation.normalize();
         if (!isFinite(rotation)) {
-            // Should be unreachable now, but a crash here previously took down the whole server
-            // tick loop, so this stays as insurance against some other future degenerate
-            // transform rather than trusting the upstream data unconditionally a second time.
+            // A degenerate transform here would crash the server tick loop.
             Mah.LOGGER.warn("[KHP] Living platform: degenerate rotation extracted for entity {} bone \"{}\" "
                     + "— skipping this tick's transform update rather than risk a server crash.", entityUuid, boneName);
             return null;
         }
+
+        double yawRad = Math.toRadians(180.0 - entity.getYRot());
+        Quaterniond yawQ = new Quaterniond().rotateY(yawRad);
+        Quaterniond yawQInverse = new Quaterniond(yawQ).conjugate();
+        Quaterniond correction = new Quaterniond(yawQ).mul(RIG_ROLL_FLIP).mul(yawQInverse);
+        rotation = new Quaterniond(correction).mul(rotation);
+        rotation.normalize();
 
         Vector3d nextVel = new Vector3d();
         Vector3d nextOmega = new Vector3d();
@@ -155,7 +121,7 @@ public final class LivingPlatformServerTransformProvider implements ServerShipTr
         return new NextTransformAndVelocityData(nextTransform, nextVel, nextOmega);
     }
 
-    /** True if {@code q}'s components are all finite and its length is within VS2's own 1e-12 tolerance of unit. */
+    /** Finite and unit-length within VS2's 1e-12 tolerance. */
     private static boolean isFinite(Quaterniond q) {
         return Double.isFinite(q.x) && Double.isFinite(q.y) && Double.isFinite(q.z) && Double.isFinite(q.w)
                 && Math.abs(q.lengthSquared() - 1.0) < 1.0e-9;

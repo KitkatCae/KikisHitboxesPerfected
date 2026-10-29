@@ -8,20 +8,7 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Skips every mixin in {@code khp.vs2.mixins.json} entirely when VS2 isn't
- * loaded — same pattern as {@code TaczMixinPlugin}, copied deliberately rather
- * than reinvented. Paired with {@code "required": false} on the config itself.
- *
- * <p>{@code LoadingModList}, not {@code ModList} — {@code ModList.get()} returns
- * {@code null} during the mixin PREPARE phase, before FML finishes constructing
- * it; {@code LoadingModList} is populated earlier and safe to query from an
- * {@link IMixinConfigPlugin}. See {@code TaczMixinPlugin}'s own javadoc for the
- * fuller explanation and the note that this project's own earlier
- * {@code CitadelMixinPlugin}/{@code LionfishMixinPlugin} both predate this
- * fix and aren't actually wired in via a {@code "plugin"} key — this class
- * follows the corrected convention, not the older one.
- */
+/** Skips the VS2 mixins without VS2. */
 public final class Vs2MixinPlugin implements IMixinConfigPlugin {
 
     private static final String MODID = "valkyrienskies";

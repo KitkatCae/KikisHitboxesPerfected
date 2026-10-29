@@ -16,30 +16,10 @@ import net.minecraftforge.registries.ForgeRegistries;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 
-/**
- * Ties {@link LivingPlatformShipManager} into the game loop and player
- * interaction — see {@code KHP_Phase2E_Design.md} §5/§6. Forge event bus
- * (confirmed pattern already used elsewhere in KHP for non-mod-lifecycle events).
- */
-@Mod.EventBusSubscriber(modid = Mah.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE)
+// Registered by LivingPlatformWiring only when VS2 is present.
 public final class LivingPlatformEvents {
 
-    /**
-     * Anchor selection — §5: right-clicking a whitelisted entity resolves which
-     * anchor's shipyard is addressed by nearest-bone-to-hit-point, using the same
-     * kind of nearest-bone match {@code MahApi#synthesizePartSnapshot} already
-     * does for multipart proxies, not a menu.
-     *
-     * <p>{@code EntityInteractSpecific} (not the plain {@code EntityInteract})
-     * carries {@code getLocalPos()} — the precise hit point, entity-relative, not
-     * yet rotated into the entity's own local frame per vanilla's
-     * {@code Entity#interactAt} convention (world hit point minus entity
-     * position). <b>Not bytecode-verified this session</b> — flagging explicitly
-     * since everything else in this file's data access was; worth confirming
-     * against a real interaction before relying on it, the fallback failure mode
-     * if the assumption is wrong is just "picks the wrong anchor on a multi-anchor
-     * mob," not a crash.
-     */
+    /** Right-click picks the anchor whose bone is nearest the hit point; shift-right-click toggles a hold. */
     @SubscribeEvent
     static void onEntityInteractSpecific(PlayerInteractEvent.EntityInteractSpecific event) {
         if (!(event.getLevel() instanceof ServerLevel serverLevel)) return;
@@ -48,7 +28,17 @@ public final class LivingPlatformEvents {
         ResourceLocation typeId = ForgeRegistries.ENTITY_TYPES.getKey(target.getType());
         if (typeId == null) return;
         LivingPlatformDefinition definition = LivingPlatformStore.get(typeId);
-        if (definition == null) return; // not a whitelisted entity type
+        if (definition == null) return;
+
+        // Checked first so sneaking never creates a ship.
+        if (event.getEntity().isShiftKeyDown()) {
+            boolean nowHeld = LivingPlatformShipManager.toggleHeld(target);
+            event.getEntity().displayClientMessage(net.minecraft.network.chat.Component.literal(
+                    nowHeld ? "[KHP] Holding still." : "[KHP] Released — free to move."), true);
+            event.setCancellationResult(net.minecraft.world.InteractionResult.SUCCESS);
+            event.setCanceled(true);
+            return;
+        }
 
         Vec3 worldHit = target.position().add(event.getLocalPos());
 
@@ -56,7 +46,7 @@ public final class LivingPlatformEvents {
         double nearestDistSq = Double.MAX_VALUE;
         for (LivingPlatformAnchor anchor : definition.anchors()) {
             Matrix4f boneWorld = MahApi.getLivingPlatformBoneTransform(target, anchor.bone());
-            if (boneWorld == null) continue; // no data for this bone right now — can't be selected
+            if (boneWorld == null) continue;
             Vector3f pos = new Vector3f();
             boneWorld.getTranslation(pos);
             double distSq = worldHit.distanceToSqr(pos.x, pos.y, pos.z);
@@ -65,20 +55,11 @@ public final class LivingPlatformEvents {
                 nearest = anchor;
             }
         }
-        if (nearest == null) return; // no anchor currently has resolvable bone data — nothing to select
+        if (nearest == null) return;
 
         LivingPlatformShipManager.getOrCreateShip(serverLevel, target, nearest);
     }
 
-    /**
-     * Per-tick freeze bookkeeping + optional eager ship creation
-     * ({@code MahConfig.livingPlatformEagerCreation}, default off — lazy
-     * creation via the interaction handler above is the default per Q2E-7).
-     * Server-side only; a cache/attachment hit inside
-     * {@link LivingPlatformShipManager#getOrCreateShip} is cheap, so running the
-     * eager-creation check every tick when the config is on is acceptable — no
-     * budget gate for this pass either way (Q2E-6).
-     */
     @SubscribeEvent
     static void onLivingTick(LivingEvent.LivingTickEvent event) {
         LivingEntity entity = event.getEntity();
@@ -98,16 +79,7 @@ public final class LivingPlatformEvents {
         }
     }
 
-    /**
-     * Resync point for a player who just started tracking (came in range of, or
-     * reconnected near) a whitelisted entity — VS2's own ship sync and
-     * {@link LivingPlatformNetworking}'s sync are on separate channels with no
-     * ordering guarantee, and more importantly {@code TRACKING_ENTITY_AND_SELF}
-     * at ship-creation time (see {@link LivingPlatformShipManager#createShip})
-     * only reaches players tracking the entity <i>at that moment</i> — anyone who
-     * starts tracking later (walks into range, reconnects) needs their own resend,
-     * which is exactly what this handler is for.
-     */
+    /** Resends ship sync to players who start tracking later than ship creation. */
     @SubscribeEvent
     static void onStartTracking(net.minecraftforge.event.entity.player.PlayerEvent.StartTracking event) {
         if (!(event.getEntity() instanceof net.minecraft.server.level.ServerPlayer player)) return;

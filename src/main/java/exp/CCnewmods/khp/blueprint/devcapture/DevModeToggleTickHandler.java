@@ -10,14 +10,6 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-/**
- * Consumes {@link DevModeKeyBindings#TOGGLE_DEV_MODE} once per client tick — kept as
- * its own top-level class rather than nested inside {@link DevModeKeyBindings}, since
- * Forge's {@code @Mod.EventBusSubscriber} annotation scanning against nested classes
- * isn't something worth gambling a silently-never-registered tick handler on; every
- * other event-bus-subscribed class in this mod is already a small dedicated
- * top-level class for the same reason.
- */
 @Mod.EventBusSubscriber(modid = Mah.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class DevModeToggleTickHandler {
 

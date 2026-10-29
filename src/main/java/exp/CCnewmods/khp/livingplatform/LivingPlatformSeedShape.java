@@ -1,30 +1,41 @@
 package exp.CCnewmods.khp.livingplatform;
 
 /**
- * The permanent understructure volume seeded onto an anchor's ship at creation —
- * see {@code KHP_Phase2E_Design.md} §10. A rectangular cuboid, centered on the
- * anchor bone's position, filled with {@code LivingPlatformSeedBlock} cells (one
- * per grid position — Minecraft blocks are always exactly 1x1x1, so a 4x4x4
- * volume is 64 individual placements, not one oversized block).
- *
- * <p>Deliberately just width/height/depth for this pass, not an arbitrary
- * per-layer footprint (Copycat-style moldable shapes) — the schema and the
- * placement code in {@link LivingPlatformShipManager#seedVolume} are both
- * written so a future {@code layers} field (list of 2D footprints, one per Y
- * level, for non-cuboid silhouettes) could extend this record without changing
- * the cuboid case's behavior, but that extension isn't built yet — flagging so
- * it isn't mistaken for already having been implemented.
- *
- * @param width  X-axis cell count, must be >= 1.
- * @param height Y-axis cell count, must be >= 1.
- * @param depth  Z-axis cell count, must be >= 1.
+ * The seed volume built on an anchor's ship: a cuboid centered on the bone, sized in half-blocks so it can
+ * match e.g. a 3.5-block hitbox ({@code widthQ = 7}).
  */
-public record LivingPlatformSeedShape(int width, int height, int depth) {
+public record LivingPlatformSeedShape(int widthQ, int heightQ, int depthQ) {
 
     public LivingPlatformSeedShape {
-        if (width < 1 || height < 1 || depth < 1) {
-            throw new IllegalArgumentException("Living platform seed shape dimensions must all be >= 1, got "
-                    + width + "x" + height + "x" + depth);
+        if (widthQ < 1 || heightQ < 1 || depthQ < 1) {
+            throw new IllegalArgumentException("Living platform seed shape dimensions must all be >= 1 quadrant, "
+                    + "got " + widthQ + "x" + heightQ + "x" + depthQ + " (quadrants)");
         }
+    }
+
+    /** Rounded up to whole blocks. */
+    public int widthBlocks() {
+        return (widthQ + 1) / 2;
+    }
+
+    public int heightBlocks() {
+        return (heightQ + 1) / 2;
+    }
+
+    public int depthBlocks() {
+        return (depthQ + 1) / 2;
+    }
+
+    /** 0.25 for an odd quadrant count, else 0: how far the floor-centered cells sit off-center. */
+    public double centroidOffsetX() {
+        return (widthQ % 2 == 0) ? 0.0 : 0.25;
+    }
+
+    public double centroidOffsetY() {
+        return (heightQ % 2 == 0) ? 0.0 : 0.25;
+    }
+
+    public double centroidOffsetZ() {
+        return (depthQ % 2 == 0) ? 0.0 : 0.25;
     }
 }

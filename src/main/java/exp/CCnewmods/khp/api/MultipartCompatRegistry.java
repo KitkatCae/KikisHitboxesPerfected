@@ -6,15 +6,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- * Registry of {@link MultipartEntityAdapter}s. Queried by
- * {@link MahApi#getCombatSnapshot} to resolve a part-proxy entity to its parent's
- * captured geometry — see that method's javadoc for the full resolution chain.
- *
- * <p>{@code CopyOnWriteArrayList} since registration happens once at startup
- * (mod/common setup) and resolution happens on hot combat-query paths — optimizes
- * for read frequency, not write frequency.
- */
+/** Registered {@link MultipartEntityAdapter}s. */
 public final class MultipartCompatRegistry {
 
     private static final List<MultipartEntityAdapter> ADAPTERS = new CopyOnWriteArrayList<>();
@@ -23,11 +15,7 @@ public final class MultipartCompatRegistry {
         ADAPTERS.add(adapter);
     }
 
-    /**
-     * The parent entity {@code entity} is a known part-proxy of, or {@code null} if
-     * {@code entity} isn't recognized as a part by any registered adapter (or is a
-     * part but its parent can't be resolved right now).
-     */
+    /** {@code null} if not a part, or the parent can't be resolved right now. */
     @Nullable
     public static Entity resolveParent(Entity entity) {
         for (MultipartEntityAdapter adapter : ADAPTERS) {

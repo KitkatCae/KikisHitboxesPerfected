@@ -14,13 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Same bone capture as GeoEntityRendererMixin, for replaced-entity renderers
- * (vanilla entities re-skinned with Geo models). Generic bounds mirror the target:
- * {@code <E extends Entity, T extends GeoAnimatable>} — the animatable parameter
- * erases to GeoAnimatable in this class, unlike GeoEntityRenderer where it erases
- * to Entity (verified from the class signatures in the pinned GeckoLib jar).
- */
+/** Bone capture for GeckoLib replaced-entity renderers. */
 @Mixin(value = GeoReplacedEntityRenderer.class, remap = false)
 public abstract class GeoReplacedEntityRendererMixin<E extends Entity, T extends GeoAnimatable> {
 

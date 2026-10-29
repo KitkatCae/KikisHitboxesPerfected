@@ -9,24 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Teaches {@link TextureAlphaSampler} how to find the real, file-backed texture
- * layers behind Ice and Fire's (and Poison Dragons', which shares the same
- * convention per direct report) synthetic dragon-texture cache keys.
- *
- * <p>Confirmed via bytecode ({@code RenderDragonBase.getTextureLocation}): the
- * returned {@code ResourceLocation} isn't a resource-pack path at all — it's a
- * synthetic key (e.g. {@code "dragon_texture_brown2truefalsetruefalsefalse"}) under
- * which a composited {@code ArrayLayeredTexture} (base skin + conditional overlays
- * like fire/ice/lightning glow, armor) gets registered directly with
- * {@code TextureManager}, bypassing the resource-pack file system. Reading that key
- * as a file always fails — {@code layeredTextureNames} (public field on
- * {@code ArrayLayeredTexture}) is where the real, readable layer paths actually live.
- *
- * <p>Opacity across layers is approximated as max-across-layers by
- * {@code TextureAlphaSampler} itself, not here — this class's only job is finding
- * the real paths.
- */
+/** Maps Ice and Fire's (and Poison Dragons') synthetic dragon texture keys to their real layer files. */
 public final class IceAndFireDynamicTextureResolver implements TextureAlphaSampler.DynamicTextureLayerResolver {
 
     public static void register() {
@@ -47,7 +30,6 @@ public final class IceAndFireDynamicTextureResolver implements TextureAlphaSampl
             try {
                 layers.add(ResourceLocation.tryParse(name.toString()));
             } catch (RuntimeException ignored) {
-                // A malformed entry shouldn't sink every other real layer.
             }
         }
         layers.removeIf(java.util.Objects::isNull);

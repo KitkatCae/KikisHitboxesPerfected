@@ -17,27 +17,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Loads every {@code data/khp/khp_living_platforms/*.json} file each resource/
- * datapack reload and publishes the result into {@link LivingPlatformStore}. Own
- * namespace/directory, deliberately not shared with {@code vs_entities} — see
- * {@code KHP_Phase2E_Design.md} §1/§2.2.
- *
- * <p>{@code GSON} declared before anything else touches it — same static-init
- * ordering discipline as {@code BlueprintReloadListener}.
- *
- * <h3>File shape</h3>
+ * Loads {@code data/khp/khp_living_platforms/*.json}:
  * <pre>{@code
  * {
  *   "entity": "misanthrope_core:some_dragon",
  *   "anchors": [
  *     { "bone": "back_plate",    "id": "back", "seed": { "width": 4, "height": 4, "depth": 4 } },
+ *     { "bone": "wing_tip",      "id": "wing", "seed": { "width_q": 7, "height_q": 3, "depth_q": 5 } },
  *     { "bone": "tail_platform", "id": "tail" }
  *   ]
  * }
  * }</pre>
- * {@code seed} is optional — omitted means a single 1x1x1 cell (see
- * {@link LivingPlatformAnchor#seedOrDefault}), not "no seed"; every anchor needs
- * at least one placed cell to give players anything to build against.
+ * {@code width}/{@code height}/{@code depth} are blocks; the {@code _q} variants are half-blocks and win if both
+ * are given. {@code seed} defaults to a single block.
  */
 public final class LivingPlatformReloadListener extends SimpleJsonResourceReloadListener {
 
@@ -89,11 +81,11 @@ public final class LivingPlatformReloadListener extends SimpleJsonResourceReload
                     LivingPlatformSeedShape seed = null;
                     if (anchorObj.has("seed")) {
                         JsonObject seedObj = anchorObj.getAsJsonObject("seed");
-                        int width = seedObj.has("width") ? seedObj.get("width").getAsInt() : 1;
-                        int height = seedObj.has("height") ? seedObj.get("height").getAsInt() : 1;
-                        int depth = seedObj.has("depth") ? seedObj.get("depth").getAsInt() : 1;
+                        int widthQ = readAxisQuadrants(seedObj, "width", fileKey, id);
+                        int heightQ = readAxisQuadrants(seedObj, "height", fileKey, id);
+                        int depthQ = readAxisQuadrants(seedObj, "depth", fileKey, id);
                         try {
-                            seed = new LivingPlatformSeedShape(width, height, depth);
+                            seed = new LivingPlatformSeedShape(widthQ, heightQ, depthQ);
                         } catch (IllegalArgumentException e) {
                             LOGGER.warn("[KHP] Living platform file {} anchor \"{}\": invalid seed shape ({}) — "
                                     + "falling back to the 1x1x1 default.", fileKey, id, e.getMessage());
@@ -120,5 +112,26 @@ public final class LivingPlatformReloadListener extends SimpleJsonResourceReload
         LivingPlatformStore.reload(definitions);
         LOGGER.info("[KHP] Loaded {} living platform whitelist entries from data/khp/{}/.",
                 definitions.size(), DIRECTORY);
+    }
+
+    private static int readAxisQuadrants(JsonObject seedObj, String axisName,
+                                          ResourceLocation fileKey, String anchorId) {
+        String qKey = axisName + "_q";
+        boolean hasBlocks = seedObj.has(axisName);
+        boolean hasQuadrants = seedObj.has(qKey);
+
+        if (hasBlocks && hasQuadrants) {
+            LOGGER.warn("[KHP] Living platform file {} anchor \"{}\": seed specifies both \"{}\" and \"{}\" — "
+                    + "using \"{}\" (quadrant units) and ignoring \"{}\".",
+                    fileKey, anchorId, axisName, qKey, qKey, axisName);
+            return seedObj.get(qKey).getAsInt();
+        }
+        if (hasQuadrants) {
+            return seedObj.get(qKey).getAsInt();
+        }
+        if (hasBlocks) {
+            return seedObj.get(axisName).getAsInt() * 2;
+        }
+        return 2; // 1 block
     }
 }

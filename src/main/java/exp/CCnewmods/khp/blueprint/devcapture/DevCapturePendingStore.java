@@ -24,16 +24,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Session-local store for dev-mode-captured poses, mirroring {@link BlueprintStore}'s
- * shape but for the {@code config/khp/animstatecache_capture/} folder (design doc
- * §5.3) rather than the shipped {@code data/khp/animstatecache/} one. Same JSON
- * schema as a real blueprint file — promoting a capture is a direct file copy into
- * {@code KHP/src/main/resources/data/khp/animstatecache/}, not a reformat.
- *
- * <p>Kept as a separate in-memory cache from {@link BlueprintStore} (not merged into
- * it) so a dev-mode capture never gets treated as authoritative shipped data before
- * it's actually been reviewed and promoted — this is scratch space, not a second
- * blueprint source {@code BlueprintResolver} will ever read from.
+ * Dev-mode captures in {@code config/khp/animstatecache_capture/}, same format as shipped blueprints (promote by
+ * copying into {@code data/khp/animstatecache/}). Never read by {@code BlueprintResolver}.
  */
 public final class DevCapturePendingStore {
 
@@ -54,15 +46,7 @@ public final class DevCapturePendingStore {
         return new File(captureDir(), safeName);
     }
 
-    /**
-     * Every pose currently known for this entity type/variant — shipped blueprint
-     * poses first, then any already-pending dev-captured poses on top (read from
-     * disk once, then cached in memory for the rest of the session; a pose id also
-     * present in the pending file wins over the shipped one, same "later entry
-     * wins" convention as a plain overlay). Used by {@link PoseSimilarity} as the
-     * full comparison set — a candidate pose only counts as new if it fails to match
-     * <i>any</i> of these, not just the shipped ones.
-     */
+    /** Shipped poses plus pending ones (pending wins on the same id). */
     public static List<List<PartOBB>> allKnownPoseParts(ResourceLocation entityType, boolean baby) {
         List<List<PartOBB>> result = new ArrayList<>();
         EntityBlueprint shipped = BlueprintStore.get(entityType, baby);
@@ -78,7 +62,6 @@ public final class DevCapturePendingStore {
         return result;
     }
 
-    /** The pose stored under {@code poseId} in the pending (not shipped) file, or {@code null}. */
     public static BlueprintPose getPendingPose(ResourceLocation entityType, boolean baby, String poseId) {
         EntityBlueprint pending = getPending(entityType, baby);
         return pending != null ? pending.pose(poseId) : null;
@@ -101,11 +84,6 @@ public final class DevCapturePendingStore {
         }
     }
 
-    /**
-     * Append (or replace, if {@code poseId} already exists in the pending file) one
-     * pose and write back to disk. Also updates the in-memory cache so subsequent
-     * comparisons this session see it immediately without re-reading the file.
-     */
     public static synchronized void appendPose(ResourceLocation entityType, boolean baby, String rendererKind,
                                                 ResourceLocation texture, String poseId, List<PartOBB> parts) {
         Key key = new Key(entityType, baby);

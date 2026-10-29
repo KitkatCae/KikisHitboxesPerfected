@@ -3,6 +3,7 @@ package exp.CCnewmods.khp.blueprint.sweep;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.EntityRenderer;
 import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
@@ -13,26 +14,12 @@ import software.bernie.geckolib.renderer.GeoRenderer;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Builds the ordered {@link PlannedPose} list for one spawned test entity, per
- * design doc §4. Called twice by {@link BlueprintCaptureSweep} for any
- * {@code AgeableMob} — once on the normal entity, once after {@code setBaby(true)} —
- * since baby gets a fully separate blueprint file (Q6), not a pose entry; this class
- * itself doesn't know about the baby/adult split, it just plans whatever poses apply
- * to the entity in its <i>current</i> state.
- */
+/** Builds the ordered poses to capture for one sweep entity. Babies get their own call and blueprint file. */
 public final class PosePlanBuilder {
 
-    /** Default sample count across a clip/sweep window — Q2, every other tick. */
     public static final int SAMPLE_COUNT = 10;
 
-    /**
-     * @param poses        the ordered plan, same as before.
-     * @param rendererKind diagnostic-only string stored on the resulting
-     *                     {@code EntityBlueprint} (see its javadoc) — resolved here
-     *                     from whichever branch below actually matched, rather than
-     *                     left as a hardcoded placeholder.
-     */
+    /** @param rendererKind diagnostic label stored on the blueprint. */
     public record PosePlan(List<PlannedPose> poses, String rendererKind) {
     }
 
@@ -46,49 +33,43 @@ public final class PosePlanBuilder {
             plan.add(new PlannedPose("sitting", e -> ((TamableAnimal) e).setInSittingPose(true)));
         }
 
-        // Base Entity API — generic across anything using vanilla's pose system,
-        // not gated on a specific entity family.
         plan.add(new PlannedPose("sleeping", e -> e.setPose(Pose.SLEEPING)));
 
         EntityRenderer<?> renderer = Minecraft.getInstance().getEntityRenderDispatcher().getRenderer(entity);
         String rendererKind;
 
-        // Epic Fight checked first — it can overlay its own skeletal animator on an
-        // entity regardless of what base renderer type the entity would otherwise
-        // use (vanilla, GeckoLib, etc.), so its presence should win the branch
-        // dispatch rather than being masked by a renderer-kind check below.
-        //
-        // Each optional-mod branch is gated on ModList.isLoaded() *before* the
-        // short-circuiting &&, not just wrapped in a null-check inside the Discovery
-        // class — every XxxAnimDiscovery class imports that mod's own types directly
-        // (e.g. yesman.epicfight.*), so simply invoking .supports(entity) when the
-        // mod isn't installed throws NoClassDefFoundError the instant the JVM tries
-        // to resolve/verify that method. Skipping the call entirely (via the
-        // short-circuit) is what actually prevents the crash — matches the same
-        // isolation convention as MahCompatBootstrap's own third-party gating.
+        // Epic Fight first: it overrides any renderer type.
+        // Check ModList before calling the XxxAnimDiscovery classes; they import the mod's types.
         if (ModList.get().isLoaded("epicfight") && EpicFightAnimDiscovery.supports(entity)) {
             plan.addAll(buildEpicFightSamples(entity));
+            plan.addAll(buildGenericMotionSamples(entity));
             rendererKind = "EPIC_FIGHT";
         } else if (renderer instanceof GeoRenderer) {
             plan.addAll(buildGeckoLibSamples(entity));
+            plan.addAll(buildGenericMotionSamples(entity));
             rendererKind = "GECKO";
         } else if (ModList.get().isLoaded("mowziesmobs") && LLibraryAnimDiscovery.supports(entity)) {
             plan.addAll(buildLLibrarySamples(entity));
+            plan.addAll(buildGenericMotionSamples(entity));
             rendererKind = "LLIBRARY";
         } else if (ModList.get().isLoaded("lionfishapi") && LionfishAnimDiscovery.supports(entity)) {
             plan.addAll(buildLionfishSamples(entity));
+            plan.addAll(buildGenericMotionSamples(entity));
             rendererKind = "LIONFISH";
         } else if (ModList.get().isLoaded("citadel") && CitadelAnimDiscovery.supports(entity)) {
             plan.addAll(buildCitadelSamples(entity));
+            plan.addAll(buildGenericMotionSamples(entity));
             rendererKind = "CITADEL";
+        } else if (ModList.get().isLoaded("uranus") && UranusAnimDiscovery.supports(entity)) {
+            // Uranus = Ice and Fire: Community Edition.
+            plan.addAll(buildUranusSamples(entity));
+            plan.addAll(buildGenericMotionSamples(entity));
+            rendererKind = "URANUS";
         } else if (renderer instanceof LivingEntityRenderer && entity instanceof LivingEntity) {
             plan.addAll(buildVanillaProceduralSamples());
             rendererKind = "VANILLA_LIVING";
         } else {
-            // OTHER-static (Citadel/LionfishAPI-basic-box models with no IAnimatedEntity
-            // and no procedural driver, or a LionfishAPI model using only the newer
-            // AdvancedKeyframeAnimations system — see design doc discussion, not
-            // handled generically) — rest capture above is the only pose.
+            // No animation system to drive: the rest pose is the only one.
             rendererKind = "OTHER";
         }
 
@@ -103,11 +84,7 @@ public final class PosePlanBuilder {
             for (int i = 0; i < SAMPLE_COUNT; i++) {
                 String poseId = "epicfight_anim_" + info.poseFragment() + "_t" + i;
                 int waitTicks = i * step;
-                // Epic Fight's playAnimationInstantly always restarts at t=0 (unlike
-                // GeckoLib's setAnimation, which no-ops on an unchanged RawAnimation —
-                // not verified either way for Epic Fight, so this re-forces every
-                // sample rather than relying on an assumed no-op) and lets real ticks
-                // elapse via BlueprintCaptureSweep's wait mechanism to reach sample i.
+                // Re-force from t=0 every sample and let ticks elapse to reach sample i.
                 PlannedPose pose = new PlannedPose(poseId, e -> EpicFightAnimDiscovery.force(e, info.accessor()));
                 BlueprintCaptureSweep.registerExtraWait(pose, waitTicks);
                 plan.add(pose);
@@ -123,11 +100,7 @@ public final class PosePlanBuilder {
             for (int i = 0; i < SAMPLE_COUNT; i++) {
                 String poseId = "clip_" + clip.name() + "_t" + i;
                 int waitTicks = (int) Math.round(i * stepTicks);
-                // Every sample re-forces the clip from t=0 and waits `waitTicks` real
-                // ticks before capturing — AnimationController has no public "seek"
-                // API, only "set animation" + "let process() tick forward" (confirmed
-                // via javap), so reaching sample i means forcing fresh and letting it
-                // run rather than seeking an already-playing controller.
+                // No seek API: re-force from t=0 and wait `waitTicks`.
                 PlannedPose pose = new PlannedPose(poseId, e -> GeckoLibClipDiscovery.forceClip(e, clip.name()));
                 BlueprintCaptureSweep.registerExtraWait(pose, waitTicks);
                 plan.add(pose);
@@ -187,17 +160,64 @@ public final class PosePlanBuilder {
         return plan;
     }
 
+    private static List<PlannedPose> buildUranusSamples(Entity entity) {
+        List<PlannedPose> plan = new ArrayList<>();
+        for (UranusAnimDiscovery.AnimInfo info : UranusAnimDiscovery.discover(entity)) {
+            int duration = Math.max(1, UranusAnimDiscovery.durationTicks(info.animation()));
+            int step = Math.max(1, duration / SAMPLE_COUNT);
+            for (int i = 0; i < SAMPLE_COUNT; i++) {
+                int tick = Math.min(duration - 1, i * step);
+                String poseId = "uranus_anim_" + info.poseFragment() + "_t" + i;
+                plan.add(new PlannedPose(poseId, e -> {
+                    UranusAnimDiscovery.force(e, info.animation());
+                    forceUranusTick(e, tick);
+                }));
+            }
+        }
+        return plan;
+    }
+
+    private static final int GENERIC_WALK_SAMPLE_COUNT = 8;
+    private static final int GENERIC_ATTACK_SAMPLE_COUNT = 8;
+    private static final int GENERIC_WALK_WINDOW_TICKS = 20;
+    private static final int GENERIC_ATTACK_WINDOW_TICKS = 20;
+
     /**
-     * Vanilla/Tabula-procedural fallback — no public per-model override point exists
-     * here the way GeckoLib/LLibrary have one (design doc §4), so this sweeps the
-     * entity's own public animation-state fields directly: {@code walkAnimation}
-     * (public, {@code WalkAnimationState} — confirmed via {@code javap}) advanced
-     * through a few phase points via its public {@code update(float, float)}, and
-     * {@code attackAnim} (public {@code float} field on {@code LivingEntity}) set
-     * directly to a few progress fractions. Deliberately a bounded approximation of a
-     * continuous space, not exhaustive — same honesty as every other capture path's
-     * documented gaps.
+     * Framework-agnostic walk/attack samples: drives real velocity and a vanilla swing and records whatever the
+     * entity's animator does. Mods with custom attack triggers may produce rest-like attack samples.
      */
+    private static List<PlannedPose> buildGenericMotionSamples(Entity entity) {
+        List<PlannedPose> plan = new ArrayList<>();
+
+        // Re-apply velocity every sample; drag decays it otherwise.
+        for (int i = 0; i < GENERIC_WALK_SAMPLE_COUNT; i++) {
+            String poseId = "walk_phase_" + i;
+            int waitTicks = (i * GENERIC_WALK_WINDOW_TICKS) / GENERIC_WALK_SAMPLE_COUNT;
+            PlannedPose pose = new PlannedPose(poseId, e -> {
+                e.setDeltaMovement(0.0, e.getDeltaMovement().y, -0.2);
+                e.hasImpulse = true;
+            });
+            BlueprintCaptureSweep.registerExtraWait(pose, waitTicks);
+            plan.add(pose);
+        }
+
+        for (int i = 0; i < GENERIC_ATTACK_SAMPLE_COUNT; i++) {
+            String poseId = "attack_swing_" + i;
+            int waitTicks = (i * GENERIC_ATTACK_WINDOW_TICKS) / GENERIC_ATTACK_SAMPLE_COUNT;
+            int index = i;
+            PlannedPose pose = new PlannedPose(poseId, e -> {
+                if (index == 0 && e instanceof LivingEntity living) {
+                    living.swing(InteractionHand.MAIN_HAND);
+                }
+            });
+            BlueprintCaptureSweep.registerExtraWait(pose, waitTicks);
+            plan.add(pose);
+        }
+
+        return plan;
+    }
+
+    /** Vanilla/Tabula-procedural fallback: steps {@code walkAnimation} and {@code attackAnim} through a few values. */
     private static List<PlannedPose> buildVanillaProceduralSamples() {
         List<PlannedPose> plan = new ArrayList<>();
         float[] walkPhases = {0.0f, 0.25f, 0.5f, 0.75f};
@@ -205,13 +225,7 @@ public final class PosePlanBuilder {
             float phase = walkPhases[i];
             plan.add(new PlannedPose("walk_phase_" + i, e -> {
                 if (e instanceof LivingEntity living) {
-                    // WalkAnimationState has no direct "set absolute position" setter
-                    // — only setSpeed/update(speed, multiplier) (confirmed via
-                    // javap). Driving position via repeated update() calls until it
-                    // crosses the target phase is an approximation of exactly how far
-                    // each call advances things; likely needs a small tuning pass once
-                    // real captures exist to compare against (same "open to tuning"
-                    // note as the sample-count default itself).
+                    // No absolute setter; repeated update() calls approximate the phase. TODO: tune.
                     living.walkAnimation.setSpeed(1.0f);
                     for (int step = 0; step < Math.round(phase * 20); step++) {
                         living.walkAnimation.update(1.0f, 0.6f);
@@ -246,6 +260,12 @@ public final class PosePlanBuilder {
 
     private static void forceCitadelTick(Entity e, int tick) {
         if (e instanceof com.github.alexthe666.citadel.animation.IAnimatedEntity animated) {
+            animated.setAnimationTick(tick);
+        }
+    }
+
+    private static void forceUranusTick(Entity e, int tick) {
+        if (e instanceof com.iafenvoy.uranus.animation.IAnimatedEntity animated) {
             animated.setAnimationTick(tick);
         }
     }

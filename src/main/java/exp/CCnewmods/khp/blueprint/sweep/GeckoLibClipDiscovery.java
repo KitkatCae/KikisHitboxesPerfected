@@ -23,27 +23,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Discovers and forces GeckoLib clips for the sweep tool, using the fully public API
- * chain confirmed via {@code javap}/CFR against the pack's pinned
- * {@code geckolib-forge-1_20_1-4_8_4.jar} — no mixin, no reflection anywhere in this
- * class:
- *
- * <pre>
- * entity (GeoAnimatable)
- *   .getAnimatableInstanceCache().getManagerForId(entity.getId())  → AnimatableManager
- *   .getAnimationControllers()                                     → Map&lt;String, AnimationController&gt;
- *   controller.setAnimation(RawAnimation.begin().thenPlay(name))    → forces the clip,
- *       bypassing the mod's own AnimationStateHandler entirely (confirmed via javap -c:
- *       setAnimation does nothing but a null/empty-stage check before building the queue)
- * </pre>
- *
- * <p>Clip names come from the model's own {@code .animation.json} file — resolved
- * per-entity via {@code GeoRenderer.getGeoModel().getAnimationResource(entity)}
- * (confirmed present on the client {@code GeoModel} class), read through
- * {@code ResourceManager} (plain data, same non-GPU-bound pattern
- * {@code TextureAlphaSampler} already uses for textures), not by scanning every file
- * under {@code assets/<modid>/animations/} blindly — a shared animations directory can
- * hold files for entities other than the one being swept.
+ * Finds a GeckoLib entity's clips (from its own {@code .animation.json}) and forces them via
+ * {@code AnimationController.setAnimation}, bypassing the mod's animation logic.
  */
 public final class GeckoLibClipDiscovery {
 
@@ -52,13 +33,7 @@ public final class GeckoLibClipDiscovery {
     public record ClipInfo(String name, double lengthTicks) {
     }
 
-    /**
-     * @return every clip declared in this entity's {@code .animation.json}, or an
-     * empty list if the renderer isn't a {@code GeoRenderer}, the resource can't be
-     * read, or the file has no {@code "animations"} object (all treated as "nothing
-     * to sweep for this entity" rather than thrown — a missing/malformed animation
-     * file falls back to whatever the vanilla-procedural sweep tier already covers).
-     */
+    /** Empty if not a GeckoLib renderer or the file can't be read. */
     public static List<ClipInfo> discoverClips(Entity entity) {
         List<ClipInfo> result = new ArrayList<>();
         if (!(entity instanceof GeoAnimatable animatable)) return result;
@@ -92,8 +67,9 @@ public final class GeckoLibClipDiscovery {
             if (animations == null) return result;
             for (String name : animations.keySet()) {
                 double length = animations.getAsJsonObject(name).has("animation_length")
-                        ? animations.getAsJsonObject(name).get("animation_length").getAsDouble() * 20.0 // seconds → ticks
-                        : 20.0; // fallback: 1 second, better than skipping the clip entirely
+                        // seconds → ticks
+                        ? animations.getAsJsonObject(name).get("animation_length").getAsDouble() * 20.0
+                        : 20.0;
                 result.add(new ClipInfo(name, length));
             }
         } catch (IOException | RuntimeException e) {
@@ -103,11 +79,6 @@ public final class GeckoLibClipDiscovery {
         return result;
     }
 
-    /**
-     * Force every {@link AnimationController} on this entity onto {@code clipName}.
-     * No-op if the entity isn't a {@code GeoAnimatable} (defensive — callers should
-     * already know this from {@link #discoverClips} returning non-empty).
-     */
     public static void forceClip(Entity entity, String clipName) {
         if (!(entity instanceof GeoAnimatable animatable)) return;
         AnimatableInstanceCache cache = animatable.getAnimatableInstanceCache();

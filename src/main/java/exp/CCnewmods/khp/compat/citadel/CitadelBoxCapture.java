@@ -18,34 +18,13 @@ import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.WeakHashMap;
 
-/**
- * All Citadel-typed geometry-capture logic lives here, isolated from
- * {@link HitboxCaptureManager} so that class stays loadable when Citadel isn't
- * installed. Only reached from {@code CitadelAdvancedModelBoxMixin}, which is itself
- * skipped entirely (mah.citadel.mixins.json is "required": false) when Citadel is absent — this
- * class is never loaded in that case either.
- *
- * <p>Naming: Citadel's own consumers (e.g. Alex's Mobs) generally pass a real
- * {@code boxName} at construction ({@code new AdvancedModelBox(this, "left_leg")}),
- * used directly when present. Some Citadel-based models still use the no-name
- * constructor, so a reflective fallback (the concrete model's own field name for
- * that box instance, e.g. {@code this.left_leg}) covers those too.
- */
+/** All Citadel-typed code, so other classes load without Citadel. Unnamed boxes use the model's field name. */
 public final class CitadelBoxCapture {
 
     private static final Field MODEL_FIELD =
             MahReflect.findSoleFieldOfType(AdvancedModelBox.class, AdvancedEntityModel.class);
 
-    // Phase 2c: TabulaModelRenderUtils.TexturedQuad and .PositionTextureVertex are
-    // both package-private (confirmed against citadel-2.6.3-1.20.1: empty access
-    // flags on both class files) even though their fields are public — so a loop
-    // variable typed as either can't be *declared* in this package, only reached via
-    // reflection. This is safe, ordinary name-based reflection (not MahReflect's
-    // type-based scheme): Citadel is a third-party jar, its field names are real and
-    // stable in both dev and production, none of the SRG-remap risk that rules out
-    // name-based lookups on vanilla classes (see ModelPartCubeMixin/CubeOpacityRecorder
-    // for where that distinction mattered). Resolved once from ModelBox's own
-    // (accessible, public) declared field types — no instance needed at class-load time.
+    // These quad/vertex classes are package-private, so their fields are read by reflection.
     private static final Field QUAD_VERTICES_FIELD;
     private static final Field QUAD_NORMAL_FIELD;
     private static final Field VERTEX_POSITION_FIELD;
@@ -73,7 +52,6 @@ public final class CitadelBoxCapture {
         }
     }
 
-    // model instance (identity) -> (box instance (identity) -> declared field name)
     private static final Map<Object, Map<Object, String>> NAME_CACHE = new WeakHashMap<>();
 
     public static void capture(AdvancedModelBox box, PoseStack.Pose pose) {
@@ -91,30 +69,12 @@ public final class CitadelBoxCapture {
         }
     }
 
-    /**
-     * Phase 2c: {@code ModelBox.quads} is directly accessible (public field on a
-     * public class), but its element type isn't nameable in this package — see the
-     * reflective field lookups above. {@code TexturedQuad}'s constructor takes a
-     * {@code Direction} but (like vanilla's {@code Polygon}) doesn't retain it as a
-     * field, so the face bucket is derived from the quad's own {@code normal} via
-     * {@link Direction#getNearest} instead of assuming array-index ordering.
-     *
-     * <p>{@code localBox} must be built the exact same way (same divide-by-16) as
-     * the box {@code captureAdvancedBoxCube} ultimately constructs — the accumulator
-     * matches each vertex to its nearest corner of *this* box, so a mismatched box
-     * here would silently corrupt that correspondence.
-     *
-     * <p>Vertex position units: assumed same raw model-unit scale as {@code posX1}
-     * etc. (matching vanilla's equivalent convention) — not bytecode-instruction-
-     * verified (can't decode Citadel's constructor body with the tooling available),
-     * worth double-checking against the debug overlay if a Citadel-backed flat part's
-     * tightened box looks wrong.
-     */
+    /** Must use the same /16 box as {@code captureAdvancedBoxCube}; the face comes from the quad's normal. */
     private static FaceOpacityAccumulator buildAccumulator(TabulaModelRenderUtils.ModelBox cube,
                                                             ResourceLocation texture, AABB localBox) {
         FaceOpacityAccumulator accumulator = new FaceOpacityAccumulator(localBox);
         if (texture == null || cube.quads == null) return accumulator;
-        Object[] quads = cube.quads; // TexturedQuad[], upcast — legal regardless of element accessibility
+        Object[] quads = cube.quads;
         for (Object quad : quads) {
             if (quad == null) continue;
             Vector3f n;

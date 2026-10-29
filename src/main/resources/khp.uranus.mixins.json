@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "exp.CCnewmods.khp.mixin.uranus",
+  "plugin": "exp.CCnewmods.khp.mixin.uranus.UranusMixinPlugin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+  ],
+  "client": [
+    "UranusAdvancedModelBoxMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

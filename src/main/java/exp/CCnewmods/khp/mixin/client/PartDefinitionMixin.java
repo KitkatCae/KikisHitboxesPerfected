@@ -13,18 +13,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.lang.reflect.Field;
 import java.util.Map;
 
-/**
- * Stamps every baked child part with its definition-map name. bake() creates one
- * ModelPart per child definition, so getChild never throws here. The subtree root of
- * each bake call is stamped by <i>its</i> parent's pass; the true root is handled by
- * LayerDefinitionMixin.
- *
- * <p>{@code children} is read via {@link MahReflect} rather than {@code @Shadow} — see
- * that class's javadoc: field-refmap generation for this exact field silently failed
- * (production crash, "field children was not located in target class"), while
- * PartDefinition has exactly one {@code Map}-typed field, making the type-based lookup
- * unambiguous and refmap-free.
- */
+/** Stamps each baked child part with its name. {@code children} is found via {@link MahReflect}. */
 @Mixin(PartDefinition.class)
 public abstract class PartDefinitionMixin {
 

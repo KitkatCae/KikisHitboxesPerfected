@@ -17,34 +17,8 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * All LLibrary-typed geometry-capture logic lives here, isolated from
- * {@link HitboxCaptureManager} so that class stays loadable when Mowzie's Mobs isn't
- * installed. Only reached from {@code MowzieAdvancedModelRendererMixin}.
- *
- * <p>Mowzie's Mobs has two entirely separate model frameworks bundled in the same
- * jar: newer creatures (Umvuthana, Sculptor, Umvuthi) use real GeckoLib via
- * {@code MowzieGeoEntityRenderer}; older ones (Frostmaw, Naga, Grottol, Wroughtnaut —
- * confirmed via bytecode: all extend plain {@code MobRenderer} directly) still use
- * this bundled, vendored copy of ilexiconn's LLibrary
- * ({@code com.ilexiconn.llibrary.client.model.tools.AdvancedModelRenderer}) — a
- * Tabula-style system structurally identical to Citadel's/LionfishAPI's
- * {@code AdvancedModelBox} (same {@code posX1..posZ2} pre-grow bounds, same
- * render/doRender split), but with <b>no name field at all</b> on the box itself
- * (verified: no {@code boxName}-equivalent anywhere in this class).
- *
- * <p>Naming is therefore entirely reflective: {@link HitboxCaptureManager#getCurrentModel()}
- * gives the concrete model instance for the active bracket (stashed from the
- * renderer's own {@code getModel()} at bracket-entry, since LLibrary's box has no
- * back-reference field to reflect off of the way Citadel's/LionfishAPI's boxes do),
- * and {@link MahReflect#mapFieldNamesByIdentity} recovers each box's declared field
- * name on it (e.g. {@code this.leftLeg}), cached per model instance.
- *
- * <p>Phase 2c: {@code AdvancedModelRenderer.TexturedQuad}/{@code .PositionTextureVertex}
- * are the same package-private-class-with-public-fields shape as Citadel's/
- * LionfishAPI's equivalents — <b>except</b> {@code ModelBox.quads} itself is
- * {@code protected} here (not public like the other two), so unlike those two this
- * needs one extra reflective step just to reach the quads array at all, not only its
- * element type's fields.
+ * All LLibrary-typed code, for Mowzie's Mobs' older creatures. LLibrary boxes have no name and no link to their
+ * model, so names come from the bracket's model fields. {@code ModelBox.quads} is protected, hence reflection.
  */
 public final class MowzieAdvancedBoxCapture {
 
@@ -77,7 +51,6 @@ public final class MowzieAdvancedBoxCapture {
         }
     }
 
-    // model instance (identity) -> (box instance (identity) -> declared field name)
     private static final Map<Object, Map<Object, String>> NAME_CACHE = new WeakHashMap<>();
 
     public static void capture(AdvancedModelRenderer box, PoseStack.Pose pose) {

@@ -10,24 +10,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import javax.annotation.Nullable;
 
-/**
- * AABB resize (replaces Phase 2D Part A3) — see {@link AabbResize}'s own javadoc
- * for the full design and reasoning.
- *
- * <p>Targets {@code Entity#makeBoundingBox()} (confirmed against the mapped jar:
- * {@code protected AABB makeBoundingBox() { return this.dimensions.makeBoundingBox(this.position); }}),
- * not {@code setBoundingBox} or {@code setPos} directly — this is the single
- * chokepoint {@code Entity#setPos(double,double,double)} (bytecode-confirmed:
- * {@code this.setPosRaw(...); this.setBoundingBox(this.makeBoundingBox());})
- * already calls on every position update, vanilla or modded, so overriding it
- * here covers movement, teleports, and spawning uniformly without needing to
- * chase every call site that moves an entity.
- *
- * <p>{@code @Inject(RETURN, cancellable)} rather than {@code @Overwrite}/
- * {@code @Redirect}: when {@link AabbResize#resizedBoxOrNull} returns
- * {@code null} (feature off, no snapshot, over the part cap), this does nothing
- * and vanilla's own computed return value passes through untouched.
- */
+/** AABB resize hook; {@code makeBoundingBox()} runs on every position update. See {@link AabbResize}. */
 @Mixin(Entity.class)
 public abstract class EntityMakeBoundingBoxMixin {
 

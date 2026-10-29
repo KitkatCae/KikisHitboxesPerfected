@@ -8,14 +8,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Global storage for captured hitbox snapshots and bone tables.
- *
- * <p>On the physical client this is written by the render thread every frame. On an
- * <b>integrated server</b> the server thread reads the very same maps — same JVM, and
- * both snapshots and bone tables are immutable/thread-safe, so live animated hitboxes
- * are available to server logic for free (design §4, source priority 1). The dedicated
- * -server sources (headless resolver, blueprints) land in phase 3 and publish into the
- * same store on the server side.
+ * All captured snapshots and bone tables. Written by the client render thread; on an integrated server the
+ * server reads the same maps. On dedicated servers it's filled from blueprints.
  */
 public final class HitboxStore {
 
@@ -35,7 +29,6 @@ public final class HitboxStore {
         SNAPSHOTS.remove(entityUuid);
     }
 
-    /** All current snapshots — live view for iteration (debug renderer). */
     public static Map<UUID, EntityHitboxSnapshot> view() {
         return SNAPSHOTS;
     }

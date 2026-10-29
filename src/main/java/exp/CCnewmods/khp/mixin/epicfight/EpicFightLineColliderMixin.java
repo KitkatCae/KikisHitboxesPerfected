@@ -15,22 +15,7 @@ import yesman.epicfight.api.collider.LineCollider;
 
 import java.util.List;
 
-/**
- * Redirects Epic Fight's {@code LineCollider.isCollide(Entity)} — a swept-segment-
- * vs-target-AABB test, used by weapons whose hitbox is a thin line rather than a
- * full OBB (polearm tips, thin blades — confirmed via decompile,
- * {@code KHP_Phase2C_Design.md} §2) — through {@link MahApi#raycastEntityCombat}.
- * Much lower-risk than {@link EpicFightOBBColliderMixin}: this is a direct 1:1
- * mapping from a line segment to MAH's existing ray API, no shape reconstruction.
- *
- * <p>Same X/Z-mirrored collider-space convention as {@link EpicFightOBBColliderMixin}
- * — see that class's javadoc for the two independent decompiled confirmations.
- * {@code worldCenter} (segment start) is inherited from {@code Collider} and
- * retrieved via {@link MahColliderAccess} — {@code @Shadow} can't reach it directly
- * here (same {@code InvalidMixinException} caught in real testing on the OBB mixin;
- * see that duck interface's javadoc). {@code worldVec} (segment delta) is declared
- * directly on {@code LineCollider} itself, so its own {@code @Shadow} is fine as-is.
- */
+/** Epic Fight line colliders (thin weapons) use captured geometry; same mirrored space as the OBB mixin. */
 @Mixin(value = LineCollider.class, remap = false)
 public abstract class EpicFightLineColliderMixin {
 
@@ -42,7 +27,7 @@ public abstract class EpicFightLineColliderMixin {
         if (!MahConfig.enabled) return;
 
         if (MahApi.getCombatSnapshot(entity) == null) {
-            return; // no MAH geometry trusted for this entity right now
+            return;
         }
 
         Vec3 worldCenter = ((MahColliderAccess) (Object) this).mah$getWorldCenter();
@@ -51,7 +36,7 @@ public abstract class EpicFightLineColliderMixin {
         Vec3 rayVec = end.subtract(start);
         double maxDistance = rayVec.length();
         if (maxDistance < 1.0e-6) {
-            return; // degenerate zero-length segment; let vanilla EF logic handle it
+            return;
         }
 
         List<PartHitResult> hits = MahApi.raycastEntityCombat(entity, start, rayVec, maxDistance);
@@ -59,7 +44,6 @@ public abstract class EpicFightLineColliderMixin {
         cir.cancel();
     }
 
-    /** Epic Fight's own collider-space-to-world-space convention: negate X and Z, leave Y. */
     private static Vec3 khp$mirror(Vec3 v) {
         return new Vec3(-v.x, v.y, -v.z);
     }

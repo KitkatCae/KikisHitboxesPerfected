@@ -8,12 +8,7 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Skips every mixin in {@code mah.lionfishapi.mixins.json} entirely when LionfishAPI
- * isn't loaded. Paired with {@code "required": false} on the config itself.
- *
- * <p>Same unverified-by-bytecode note as {@code CitadelMixinPlugin} applies here.
- */
+/** Unused: not referenced by khp.lionfishapi.mixins.json. */
 public final class LionfishMixinPlugin implements IMixinConfigPlugin {
 
     private static final String MODID = "lionfishapi";

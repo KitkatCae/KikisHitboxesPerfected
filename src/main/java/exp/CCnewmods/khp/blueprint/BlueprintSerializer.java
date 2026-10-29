@@ -13,24 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Hand-written JSON (de)serialization for {@link EntityBlueprint}/{@link BlueprintPose}/
- * {@link PartOBB}.
- *
- * <p><b>Deliberately not left to Gson's default reflective mapping</b> (confirmed via
- * source check — no serialization convention existed anywhere in the mod before this,
- * see design doc Q1): {@link PartOBB} holds a JOML {@code Matrix4f} and a vanilla
- * {@code AABB}, neither of which is a plain POJO Gson could map safely on its own —
- * writing every field explicitly here means the on-disk shape is exactly what's
- * intended, not whatever Gson's reflection happens to produce for a third-party
- * library type today.
- *
- * <p>{@code Matrix4f} round-trips via its 16 individual {@code mRC()} scalar getters
- * and the matching 16-float constructor — confirmed present on the actual JOML jar
- * this project builds against, not assumed. Deliberately <b>not</b> using
- * {@code Matrix4f}'s {@code FloatBuffer}-based get/set: the project's own hard-won
- * lesson (Phase 1 handoff §5) is that a heap-backed {@code FloatBuffer} crashes the
- * JVM natively on JOML's {@code Unsafe} fast path. The scalar-getter/16-arg-constructor
- * path used here never touches that code at all.
+ * JSON (de)serialization for blueprints. Matrices go through the 16 {@code mRC()} getters, never
+ * {@code FloatBuffer} (a heap buffer crashes JOML's Unsafe path).
  */
 public final class BlueprintSerializer {
 
@@ -52,15 +36,7 @@ public final class BlueprintSerializer {
         return root;
     }
 
-    /**
-     * The file is fully self-describing — {@code entity_type} and {@code baby} are
-     * read from the JSON body itself, <b>not</b> derived from the resource path/file
-     * name. Splitting {@code minecraft_cow_baby.json} back into {@code minecraft:cow}
-     * + baby=true by string convention is ambiguous in general (namespaces and entity
-     * path segments can themselves contain underscores), so the file name is purely
-     * organizational; the reload listener cross-checks it against this and logs a
-     * warning on mismatch rather than trusting the path.
-     */
+    /** Type and baby flag come from the JSON body; file names are ambiguous because ids contain underscores. */
     public static EntityBlueprint fromJson(JsonObject root) {
         ResourceLocation entityType = new ResourceLocation(root.get("entity_type").getAsString());
         boolean baby = root.has("baby") && root.get("baby").getAsBoolean();
@@ -146,9 +122,7 @@ public final class BlueprintSerializer {
     }
 
     // ── Matrix4f ──────────────────────────────────────────────────────────────
-    // Row-major m00..m33 flat array of 16 floats — matches JOML's own mRC() naming
-    // (first digit = row, second = column) so the on-disk order is self-describing
-    // against JOML's own documentation, not an arbitrary flattening.
+    // 16 floats in mRC() order: m00, m01, ..., m33.
 
     private static JsonArray toJson(Matrix4f m) {
         JsonArray arr = new JsonArray(16);
@@ -166,9 +140,6 @@ public final class BlueprintSerializer {
         }
         float[] v = new float[16];
         for (int i = 0; i < 16; i++) v[i] = arr.get(i).getAsFloat();
-        // Matrix4f(float, ...) constructor is in COLUMN-major argument order per JOML's
-        // own convention (m00, m01, m02, m03, m10, ...) matching mRC() naming used above,
-        // so this is a direct positional match, not a transpose.
         return new Matrix4f(
                 v[0], v[1], v[2], v[3],
                 v[4], v[5], v[6], v[7],

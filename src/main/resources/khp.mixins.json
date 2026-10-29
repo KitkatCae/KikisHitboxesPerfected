@@ -8,7 +8,8 @@
     "ProjectileUtilMixin",
     "EntityCanBeCollidedWithMixin",
     "EntityCollideEntityShapesMixin",
-    "EntityMakeBoundingBoxMixin"
+    "EntityMakeBoundingBoxMixin",
+    "SolidMobDisplacementMixin"
   ],
   "client": [
     "client.EntityHitboxOverlayMixin",

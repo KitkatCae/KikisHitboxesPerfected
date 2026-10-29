@@ -14,33 +14,8 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Closes the primary-geometry gate once the entity's own model render
- * ({@code this.model.renderToBuffer(...)}, INVOKE owner EntityModel — verified in the
- * mapped jar) has finished, so RenderLayer geometry rendered afterward (armor,
- * saddles, energy swirls) is skipped unless capture_layers is on. RETURN close is a
- * safety net for the same reason.
- *
- * <p><b>Phase 1C change:</b> the gate no longer needs an explicit "open" injection.
- * {@link HitboxCaptureManager#enterBracket} now defaults {@code primaryGate} to
- * {@code true} for every VANILLA_LIVING bracket, closed only by the injections below.
- * The old design required this class's own {@code render(LivingEntity,...)} method
- * to actually execute before capture could begin — which silently produced zero boxes
- * for any renderer that fully overrides {@code render(...)} without calling
- * {@code super.render(...)} (confirmed via bytecode: Ice and Fire's
- * {@code RenderGhost}, which reimplements the whole render pipeline itself and calls
- * {@code ModelGhost.renderToBuffer} directly, never reaching this class's method body
- * at all). Defaulting to open and only closing here means such renderers are now
- * captured as fully primary — the correct behavior when they have no RenderLayers to
- * distinguish from, and a strict improvement over silently capturing nothing.
- *
- * <p><b>Phase 1D addition:</b> {@code mah$wrapLayerRender} redirects each individual
- * {@code RenderLayer.render(...)} call inside the layers loop. Most layers render
- * with the gate closed as before (cosmetic overlays — armor, saddles). Layers whose
- * concrete class is registered via
- * {@link HitboxCaptureManager#registerAnatomicalRenderLayer} (confirmed real anatomy
- * implemented as a layer, e.g. vanilla's {@code SlimeOuterLayer} or Ice and Fire's
- * {@code LayerHydraHead}) get the gate briefly reopened for just that one layer's
- * render call, then closed again for whatever comes next in the loop.
+ * Closes the primary-geometry gate after the main model renders, so layers (armor, saddles) aren't captured
+ * unless capture_layers is on, except layers registered as anatomy.
  */
 @Mixin(LivingEntityRenderer.class)
 public abstract class LivingEntityRendererMixin {

@@ -11,21 +11,7 @@ import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-/**
- * {@code /khprefresh} — dev-only, client-side. Forces {@link TextureAlphaSampler} to
- * drop every cached {@code NativeImage} (and every failed-read/resolved-dynamic-layer
- * entry alongside them) and re-read from disk on next sample.
- *
- * <p>This is the manual refresh command referenced by name ("Q5") in {@link
- * TextureAlphaSampler#invalidateAll()}'s own javadoc since the very first opacity
- * design doc — flagged there and in every phase handoff since as "not done", and
- * never actually built until now. Neither this command nor a real resource-reload
- * listener existed before this session ({@code invalidateAll()} had zero callers at
- * all) — {@code TextureCacheReloadListener} (same package) now covers the automatic
- * case (a real resource-pack reload); this command covers what that listener can't:
- * an EMF-style client-side model/texture swap, or any other case where the texture
- * changed underneath MAH without a resource reload firing.
- */
+/** {@code /khprefresh}: re-reads textures, for swaps that don't trigger a resource reload (e.g. EMF). */
 @Mod.EventBusSubscriber(modid = Mah.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class MahDebugCommand {
 

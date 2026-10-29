@@ -14,12 +14,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * DynamicGeoEntityRenderer declares its own renderRecursively override (a standalone
- * reimplementation that never calls GeoEntityRenderer's version, verified in the
- * pinned jar), so the GeoEntityRendererMixin injection never fires for it — this
- * mixin covers the dynamic path (per-bone texture/render-type swapping renderers).
- */
+/** DynamicGeoEntityRenderer has its own renderRecursively, so it needs its own hook. */
 @Mixin(value = DynamicGeoEntityRenderer.class, remap = false)
 public abstract class DynamicGeoEntityRendererMixin<T extends Entity & GeoAnimatable> {
 

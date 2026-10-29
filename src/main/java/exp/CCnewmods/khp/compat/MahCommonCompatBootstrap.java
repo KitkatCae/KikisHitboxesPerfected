@@ -7,33 +7,22 @@ import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 
-/**
- * Registers {@link exp.CCnewmods.khp.api.MultipartEntityAdapter}s on
- * {@link FMLCommonSetupEvent} — deliberately <b>not</b> {@code FMLClientSetupEvent}
- * (unlike {@link MahCompatBootstrap}, which is client-only and fine to be, since
- * render-layer registration only ever matters client-side). Arrow/melee damage
- * dealt through a part entity is server-authoritative — a dedicated server needs
- * these adapters registered too, or {@code MultipartCompatRegistry} would be
- * permanently empty there and every part-entity hit would silently fall back to
- * the part's own crude box on the side that actually deals the damage.
- *
- * <p>{@code FMLCommonSetupEvent} fires on both physical sides, well after
- * {@code ModList} is safe to query — same timing safety as {@code MahCompatBootstrap}
- * documents for {@code FMLClientSetupEvent}, just the common-bus equivalent.
- */
+/** Registers multipart adapters on both sides; part hits are server-authoritative. */
 @Mod.EventBusSubscriber(modid = Mah.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public final class MahCommonCompatBootstrap {
 
     @SubscribeEvent
     static void onCommonSetup(FMLCommonSetupEvent event) {
-        // Forge's own PartEntity — always present, no mod-loaded gate needed.
-        // Covers the vanilla Ender Dragon and Ender's Cataclysm's Cm_Part_Entity.
+        // Ender Dragon, Ender's Cataclysm, and anything else on Forge's PartEntity.
         MultipartCompatRegistry.register(new VanillaPartEntityAdapter());
 
-        // Third-party — isolated so the reference is only resolved once we've
-        // confirmed the mod is actually on the classpath.
-        if (ModList.get().isLoaded("iceandfire")) {
-            MultipartCompatRegistry.register(new exp.CCnewmods.khp.compat.iceandfire.IceAndFireMultipartAdapter());
+        switch (exp.CCnewmods.khp.compat.iceandfire.IceAndFireVariant.current()) {
+            case ORIGINAL -> MultipartCompatRegistry.register(
+                    new exp.CCnewmods.khp.compat.iceandfire.IceAndFireMultipartAdapter());
+            case COMMUNITY_EDITION -> MultipartCompatRegistry.register(
+                    new exp.CCnewmods.khp.compat.iceandfire.ce.IceAndFireCEMultipartAdapter());
+            default -> {
+            }
         }
     }
 

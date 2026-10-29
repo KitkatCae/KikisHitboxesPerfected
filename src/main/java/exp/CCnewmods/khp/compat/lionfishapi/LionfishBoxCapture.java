@@ -19,26 +19,8 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 /**
- * All LionfishAPI-typed geometry-capture logic lives here, isolated from
- * {@link HitboxCaptureManager} so that class stays loadable when LionfishAPI isn't
- * installed. Only reached from {@code LionfishAdvancedModelBoxMixin}, which is itself
- * skipped entirely (mah.lionfishapi.mixins.json is "required": false) when LionfishAPI is absent.
- *
- * <p>Naming: unlike Citadel's own consumers, Ender's Cataclysm's own entity models
- * (verified directly against its jar: {@code Deepling_Brute_Model},
- * {@code Endermaptera_Model}, and others) construct every {@code AdvancedModelBox}
- * with the no-name constructor — {@code boxName} is empty on every part. The
- * reflective fallback (the concrete model's own field name for that box instance,
- * e.g. {@code this.left_leg}) is therefore the <b>primary</b> naming source here,
- * not just a fallback, for every Cataclysm mob.
- *
- * <p>Phase 2c: {@code LionfishModelRenderUtils.ModelBox}, {@code .TexturedQuad}, and
- * {@code .PositionTextureVertex} are byte-for-byte the same shape as Citadel's
- * equivalents (verified against lionfishapi-3.0: {@code ModelBox.quads} public,
- * {@code TexturedQuad}/{@code PositionTextureVertex} package-private classes with
- * public fields) — same reflective-field-lookup approach as
- * {@code CitadelBoxCapture}, resolved once from {@code ModelBox}'s own accessible
- * declared field types, no instance needed at class-load time.
+ * All LionfishAPI-typed code. Ender's Cataclysm never names its boxes, so the model's field names are used.
+ * Same reflective quad access as {@code CitadelBoxCapture}.
  */
 public final class LionfishBoxCapture {
 
@@ -72,7 +54,6 @@ public final class LionfishBoxCapture {
         }
     }
 
-    // model instance (identity) -> (box instance (identity) -> declared field name)
     private static final Map<Object, Map<Object, String>> NAME_CACHE = new WeakHashMap<>();
 
     public static void capture(AdvancedModelBox box, PoseStack.Pose pose) {
@@ -90,18 +71,12 @@ public final class LionfishBoxCapture {
         }
     }
 
-    /**
-     * {@code localBox} must be built the exact same way (same divide-by-16) as the
-     * box {@code captureAdvancedBoxCube} ultimately constructs — see
-     * {@code CitadelBoxCapture}'s equivalent for why. Vertex position units: same
-     * "assumed raw model-unit scale, not instruction-verified" caveat as Citadel's
-     * equivalent (identical Tabula lineage, same reasoning applies).
-     */
+    /** Must use the same /16 box as {@code captureAdvancedBoxCube}. */
     private static FaceOpacityAccumulator buildAccumulator(LionfishModelRenderUtils.ModelBox cube,
                                                             ResourceLocation texture, AABB localBox) {
         FaceOpacityAccumulator accumulator = new FaceOpacityAccumulator(localBox);
         if (texture == null || cube.quads == null) return accumulator;
-        Object[] quads = cube.quads; // TexturedQuad[], upcast — legal regardless of element accessibility
+        Object[] quads = cube.quads;
         for (Object quad : quads) {
             if (quad == null) continue;
             Vector3f n;

@@ -14,35 +14,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.util.List;
 
 /**
- * Phase 2D, Part B — precise per-part frustum culling.
- *
- * <p>Targets {@code EntityRenderer.shouldRender}, not
- * {@code EntityRenderDispatcher.shouldRender} — the dispatcher method (bytecode-
- * confirmed) just delegates straight to this one, which is where the real test
- * lives:
- * <pre>
- * if (!entity.shouldRender(camX, camY, camZ)) return false;
- * if (entity.noCulling) return true;
- * AABB aabb = entity.getBoundingBoxForCulling().inflate(0.5);
- * // NaN/zero-size guard, then:
- * return frustum.isVisible(aabb);
- * </pre>
- * (both {@code Entity.shouldRender(double,double,double)} and {@code Entity.noCulling}
- * are public, confirmed against the mapped jar).
- *
- * <p>This injects at HEAD, cancellable. When no precise part geometry is
- * resolvable for the entity (disabled, no snapshot, over the part cap), it does
- * nothing and lets vanilla's method body run unmodified — so the two gate checks
- * above are only ever duplicated here on the path where this mixin is actually
- * about to supply its own answer, not on every call.
- *
- * <p>When parts ARE available, {@code frustum.isVisible(AABB)} (bytecode-confirmed
- * the only public visibility test {@link Frustum} exposes) is tested per part
- * instead of once against the union box; the entity is visible if ANY part is.
- * Since the union of all parts always contains every individual part, this can
- * only cull entities the union-box test would have kept — never the reverse — so
- * it is strictly a tightening, not a behavior change for anything currently
- * rendering correctly.
+ * Per-part frustum culling: visible if any part is in view. Only ever culls more than vanilla's whole-box test;
+ * entities without part data fall through to vanilla.
  */
 @Mixin(EntityRenderer.class)
 public abstract class EntityRendererCullMixin<T extends Entity> {

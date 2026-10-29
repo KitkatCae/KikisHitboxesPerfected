@@ -31,39 +31,16 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * Dev-mode gap-filling — design doc §5. When {@link MahConfig#devModePoseCapture} is
- * on, scans currently-live-captured entities each tick and flags/captures any pose
- * the automatic sweep's generic checks might have missed, without hand-maintaining a
- * per-species pose list.
- *
- * <h3>Two-tier detection (Q3)</h3>
- * <ul>
- *   <li><b>State-tied poses</b> (sitting, sleeping) — direct, synchronous comparison
- *       against whatever's already stored (shipped or pending) under that exact pose
- *       id. Cheap, one comparison, no ambiguity about what "correct" means here.</li>
- *   <li><b>Everything else (procedural)</b> — recorded unconditionally, then compared
- *       asynchronously (a dedicated background thread, not the client thread) against
- *       every existing known pose for the entity type. Avoids a synchronous per-tick
- *       cost for the tier that has no fixed target to check against in the first
- *       place.</li>
- * </ul>
- *
- * <p>Baby is a file-selection question (handled by baby-aware keys on
- * {@code BlueprintStore}/{@code DevCapturePendingStore}), not a separate pose check
- * here.
+ * Dev mode: captures on-screen poses the sweep missed. Sitting/sleeping are compared directly against their
+ * stored pose; everything else is compared against all known poses on a background thread.
  */
 @Mod.EventBusSubscriber(modid = Mah.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class DevModeGapFiller {
 
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    /** How often (client ticks) a given entity instance is re-checked at all. */
     private static final int CHECK_INTERVAL_TICKS = 10;
-    /**
-     * After an actual capture fires for an entity instance, don't re-check it again
-     * for this many ticks — avoids re-flagging the same held pose every check while
-     * it's still in progress.
-     */
+    /** So a held pose isn't flagged over and over. */
     private static final int POST_CAPTURE_COOLDOWN_TICKS = 200;
 
     private static final Map<UUID, Long> NEXT_CHECK_TICK = new ConcurrentHashMap<>();
@@ -84,9 +61,7 @@ public final class DevModeGapFiller {
         if (mc.level == null) return;
         long gameTime = mc.level.getGameTime();
 
-        // Iterating HitboxStore directly (not MahApi.getSnapshot) — this feature only
-        // ever cares about genuinely live-rendered entities; a blueprint-resolved
-        // snapshot has nothing new to discover about itself.
+        // Live captures only; a blueprint has nothing new to discover.
         for (var entry : HitboxStore.view().entrySet()) {
             EntityHitboxSnapshot snap = entry.getValue();
             if (snap.source() != SnapshotSource.LIVE_CLIENT) continue;
@@ -124,11 +99,6 @@ public final class DevModeGapFiller {
         }
     }
 
-    /**
-     * Synchronous, direct comparison against whichever specific pose id applies —
-     * cheap (one comparison), and there's a clear, specific target to check against,
-     * unlike the procedural tier.
-     */
     private static void checkStateTiedPose(Entity entity, ResourceLocation entityKey, boolean baby,
                                             String poseId, List<PartOBB> liveParts, long gameTime) {
         BlueprintPose existingShipped = shippedPose(entityKey, baby, poseId);
@@ -136,25 +106,18 @@ public final class DevModeGapFiller {
         BlueprintPose existing = existingPending != null ? existingPending : existingShipped;
 
         if (existing != null && PoseSimilarity.matches(existing.parts(), liveParts)) {
-            return; // already covered, close enough
+            return;
         }
 
         capture(entity, entityKey, baby, poseId, liveParts, gameTime);
     }
 
-    /**
-     * Unconditional record + async comparison against the full known pose set —
-     * design doc §5.2's second tier. The comparison (and the resulting capture/no-op
-     * decision) runs on a dedicated background thread so this never costs the client
-     * thread anything beyond snapshotting the already-captured part list, which is
-     * already-computed data, not new work.
-     */
     private static void checkProceduralPose(Entity entity, ResourceLocation entityKey, boolean baby,
                                              List<PartOBB> liveParts, long gameTime) {
         PROCEDURAL_EXECUTOR.submit(() -> {
             try {
                 List<List<PartOBB>> known = DevCapturePendingStore.allKnownPoseParts(entityKey, baby);
-                if (!PoseSimilarity.isNewPose(known, liveParts)) return; // matches something already known — discard
+                if (!PoseSimilarity.isNewPose(known, liveParts)) return;
                 String poseId = "dev_capture_t" + gameTime;
                 captureOnClientThread(entity, entityKey, baby, poseId, liveParts, gameTime);
             } catch (RuntimeException e) {
@@ -163,12 +126,6 @@ public final class DevModeGapFiller {
         });
     }
 
-    /**
-     * The actual capture (file write + chat notification) is scheduled back onto the
-     * client thread — {@code displayClientMessage} and this mod's general
-     * "everything client-side runs on the client thread" convention both expect that,
-     * even though the file I/O itself would be safe from any thread.
-     */
     private static void captureOnClientThread(Entity entity, ResourceLocation entityKey, boolean baby,
                                                String poseId, List<PartOBB> liveParts, long gameTime) {
         Minecraft.getInstance().execute(() -> capture(entity, entityKey, baby, poseId, liveParts, gameTime));

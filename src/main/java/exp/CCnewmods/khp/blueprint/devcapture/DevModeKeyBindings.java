@@ -8,13 +8,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
 
-/**
- * Registers the dev-mode-pose-capture toggle keybind (design doc §5.1 — config
- * <b>and</b> a keybind, so this can be flipped mid-session without a restart) and
- * consumes it each client tick, same standard Forge keybind pattern used everywhere
- * else. Default F9 — unbound in vanilla, rebindable in the normal controls menu like
- * any other keybind regardless of this default.
- */
+/** Dev-mode pose capture toggle, default F9. */
 @Mod.EventBusSubscriber(modid = Mah.MODID, bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
 public final class DevModeKeyBindings {
 

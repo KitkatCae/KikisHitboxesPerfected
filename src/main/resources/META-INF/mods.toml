@@ -44,12 +44,6 @@ versionRange = "[1,)"
 ordering = "AFTER"
 side = "CLIENT"
 [[dependencies."${mod_id}"]]
-modId = "iceandfire"
-mandatory = false
-versionRange = "[2,)"
-ordering = "AFTER"
-side = "CLIENT"
-[[dependencies."${mod_id}"]]
 modId = "betterend"
 mandatory = false
 versionRange = "[20,)"
@@ -69,7 +63,19 @@ ordering = "AFTER"
 side = "CLIENT"
 [[dependencies."${mod_id}"]]
 modId = "valkyrienskies"
-mandatory = true
+mandatory = false
 versionRange = "[2.4,)"
 ordering = "AFTER"
 side = "BOTH"
+[[dependencies."${mod_id}"]]
+modId = "figura"
+mandatory = false
+versionRange = "[0.1,)"
+ordering = "AFTER"
+side = "CLIENT"
+[[dependencies."${mod_id}"]]
+modId = "entity_model_features"
+mandatory = false
+versionRange = "[3,)"
+ordering = "AFTER"
+side = "CLIENT"

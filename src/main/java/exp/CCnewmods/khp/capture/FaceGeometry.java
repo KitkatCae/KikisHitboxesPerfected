@@ -4,28 +4,11 @@ import net.minecraft.core.Direction;
 import net.minecraft.world.phys.AABB;
 
 /**
- * Shared per-face geometry helpers — corner extraction (previously duplicated inline
- * in {@code MahClientEvents}' debug overlay, now the one copy the debug renderer,
- * Option A's box tightening, and Option B's per-pixel raycast test all share) and the
- * bilinear local↔UV mapping Option B needs.
- *
- * <h3>Corner convention</h3>
- * {@link #faceCorners(AABB, Direction)} returns four corners in a fixed winding order
- * for a given face. In local (axis-aligned box) space, corner0→corner1 varies exactly
- * one in-plane axis and corner1→corner2 varies exactly the other — both facts this
- * class's bilinear math depends on. Never renumber this without checking every caller.
- *
- * <h3>Why bilinear over 4 corners, not a 2-corner diagonal shortcut</h3>
- * An earlier draft of this class tried to get away with storing only two diagonal
- * corners' UV and interpolating a single shared fraction toward a query point — that's
- * only correct for points that happen to lie exactly on the corner0–corner2 diagonal.
- * A general point on the face (most raycast hits) needs two independent fractions,
- * one per in-plane axis, which in turn needs all four corners' UV to solve
- * unambiguously — caught before it shipped, not after.
+ * Per-face corner and bilinear UV helpers. {@link #faceCorners} has a fixed winding (corner0→1 varies one
+ * in-plane axis, corner1→2 the other); the bilinear math depends on it, so don't renumber.
  */
 public final class FaceGeometry {
 
-    /** The four corners of one face of {@code box}, in a consistent winding order, for {@code dir}. */
     public static float[][] faceCorners(AABB box, Direction dir) {
         float x0 = (float) box.minX, y0 = (float) box.minY, z0 = (float) box.minZ;
         float x1 = (float) box.maxX, y1 = (float) box.maxY, z1 = (float) box.maxZ;
@@ -39,20 +22,16 @@ public final class FaceGeometry {
         };
     }
 
-    /** Which two local axis indices (0=X,1=Y,2=Z) vary in-plane on face {@code dir} — corner0→1 is the first, corner1→2 the second. */
+    /** In-plane axis indices (0=X,1=Y,2=Z) for {@code dir}: corner0→1, then corner1→2. */
     public static int[] inPlaneAxes(Direction dir) {
         return switch (dir) {
-            case DOWN, UP -> new int[]{0, 2};    // X then Z
-            case NORTH, SOUTH -> new int[]{0, 1}; // X then Y
-            case WEST, EAST -> new int[]{2, 1};   // Z then Y
+            case DOWN, UP -> new int[]{0, 2};
+            case NORTH, SOUTH -> new int[]{0, 1};
+            case WEST, EAST -> new int[]{2, 1};
         };
     }
 
-    /**
-     * Bilinear UV at local point ({@code lx,ly,lz}), assumed already on face
-     * {@code dir}'s plane (callers do the ray/plane intersection first), given that
-     * face's four corner UVs in {@link #faceCorners} order.
-     */
+    /** Assumes the point is already on the face's plane. */
     public static float[] bilinearUV(AABB box, Direction dir, float lx, float ly, float lz,
                                      PartOBB.FlatFaceUV uv) {
         float[][] c = faceCorners(box, dir);
@@ -65,23 +44,7 @@ public final class FaceGeometry {
         return new float[]{u, v};
     }
 
-    /**
-     * Option A: shrink {@code box} on its two in-plane axes to the opaque region's
-     * UV bounds (from {@link TextureAlphaSampler#analyzeRect}), preserving the
-     * original extent on the thin axis untouched — and produce the new
-     * {@link PartOBB.FlatFaceUV} for the tightened box in the same pass, so the two
-     * stay correctly corresponded by construction rather than by separately
-     * reasoning about corner roles twice.
-     *
-     * <h3>Mirrored UV</h3>
-     * Both vanilla {@code Cube} and Citadel/Tabula-lineage boxes support a mirror
-     * flag, which can make U <i>decrease</i> as the in-plane s-axis increases instead
-     * of the more common increasing case. Blindly assigning
-     * {@code opaqueMinU → corner0} would silently flip the mapping for a mirrored
-     * box. Instead, the direction U/V actually run in is read off the <i>original</i>
-     * {@code flatUV} (whether {@code u1 >= u0}, {@code v3 >= v0}) and the new corners
-     * are assigned consistently with that, whichever way it goes.
-     */
+    /** Shrinks {@code box} to the opaque UV region. Follows the original UV direction, so mirrored boxes work. */
     public static Tightened tightenToOpaqueBounds(AABB box, Direction dir, PartOBB.FlatFaceUV flatUV,
                                                    TextureAlphaSampler.RectAnalysis analysis) {
         float[][] c = faceCorners(box, dir);
@@ -120,13 +83,7 @@ public final class FaceGeometry {
     public record Tightened(AABB box, PartOBB.FlatFaceUV flatUV) {
     }
 
-    /**
-     * Which of {@code corners}' four entries a sampled vertex position is closest to
-     * — used to correlate an incoming vertex's UV to a specific {@link #faceCorners}
-     * slot without assuming the source's own vertex emission order matches this
-     * class's winding convention (it generally won't; vanilla/GeckoLib/Citadel each
-     * emit in whatever order their own model authoring produced).
-     */
+    /** Matches a vertex to a corner by position, since sources emit vertices in their own order. */
     public static int nearestCornerIndex(float[][] corners, float lx, float ly, float lz) {
         int best = 0;
         float bestDist = Float.MAX_VALUE;

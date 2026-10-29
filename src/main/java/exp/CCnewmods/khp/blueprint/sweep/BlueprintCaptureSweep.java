@@ -12,6 +12,8 @@ import exp.CCnewmods.khp.blueprint.EntityBlueprint;
 import exp.CCnewmods.khp.capture.EntityHitboxSnapshot;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.AgeableMob;
 import net.minecraft.world.entity.Entity;
@@ -22,6 +24,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.slf4j.Logger;
 
@@ -36,22 +39,8 @@ import java.util.Map;
 import java.util.Queue;
 
 /**
- * Dev-only tick-driven sweep controller — see design doc §4. Runs one small step per
- * client tick rather than blocking a command's execution, since capture is entirely
- * dependent on real render frames actually happening (a spawned entity needs several
- * real ticks/frames to render before {@code HitboxStore} has anything for it).
- *
- * <p>Each new entity type spawns 4 blocks north of the player and forces the
- * player's own camera to face north via {@code Entity.absMoveTo(x, y, z, yaw, pitch)}
- * — the same "teleport with rotation" method vanilla's own {@code /tp} command uses,
- * confirmed via decompile to also sync {@code yRotO}/{@code xRotO} so there's no
- * interpolation snap glitch — rather than leaving whether the entity actually ends up
- * on-screen (and therefore whether it renders at all) to wherever the player happened
- * to be looking. Position args passed are the player's own current position
- * unchanged, so this only ever turns the camera, never teleports the player anywhere.
- *
- * <p>Not thread-sensitive beyond the usual "everything here runs on the client
- * thread" assumption every other client-only class in this mod already makes.
+ * Dev-only: spawns each entity type 4 blocks north of the player, turns the camera to face it, and captures its
+ * planned poses over the following ticks.
  */
 @Mod.EventBusSubscriber(modid = Mah.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class BlueprintCaptureSweep {
@@ -60,8 +49,6 @@ public final class BlueprintCaptureSweep {
     private static final Gson EXPORT_GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private static final int SETTLE_TICKS = 5;
-
-    // ── Per-PlannedPose extra wait (GeckoLib clip sampling — see PosePlanBuilder) ──
 
     private static final Map<PlannedPose, Integer> EXTRA_WAIT = new IdentityHashMap<>();
 
@@ -72,8 +59,6 @@ public final class BlueprintCaptureSweep {
     private static int extraWaitFor(PlannedPose pose) {
         return EXTRA_WAIT.getOrDefault(pose, 0);
     }
-
-    // ── Run state ────────────────────────────────────────────────────────────
 
     private static boolean running = false;
     private static Queue<ResourceLocation> queue = new ArrayDeque<>();
@@ -92,8 +77,6 @@ public final class BlueprintCaptureSweep {
     private static String currentRendererKind = "OTHER";
     private static ResourceLocation currentTexture;
 
-    // ── Public control surface (called by the client command) ──────────────
-
     public static void start() {
         if (running) {
             LOGGER.warn("[KHP] Sweep already running.");
@@ -109,6 +92,19 @@ public final class BlueprintCaptureSweep {
         testEntity = null;
         running = true;
         LOGGER.info("[KHP] Sweep started — {} entity types queued.", totalTypes);
+        warnIfModelsCanBeReplaced();
+    }
+
+    // Blueprints ship to everyone, so they must be captured from vanilla-shaped models.
+    private static void warnIfModelsCanBeReplaced() {
+        if (!ModList.get().isLoaded("entity_model_features")) return;
+        String msg = "Entity Model Features is installed: disable any optional resource packs that change mob "
+                + "models before sweeping, or the exported blueprints will use those models.";
+        LOGGER.warn("[KHP] {}", msg);
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.player != null) {
+            mc.player.displayClientMessage(Component.literal("[KHP] " + msg).withStyle(ChatFormatting.YELLOW), false);
+        }
     }
 
     public static void stop() {
@@ -128,8 +124,6 @@ public final class BlueprintCaptureSweep {
                         + (testEntity != null ? ", current: " + MahApi.entityTypeKey(testEntity) : "")
                 : "Sweep not running.";
     }
-
-    // ── Tick driver ──────────────────────────────────────────────────────────
 
     @SubscribeEvent
     static void onClientTick(TickEvent.ClientTickEvent event) {
@@ -158,8 +152,6 @@ public final class BlueprintCaptureSweep {
         }
     }
 
-    // ── State transitions ───────────────────────────────────────────────────
-
     private static void advanceToNextEntityType() {
         while (true) {
             ResourceLocation id = queue.poll();
@@ -187,18 +179,11 @@ public final class BlueprintCaptureSweep {
                 continue;
             }
             if (!(spawned instanceof LivingEntity)) {
-                continue; // non-living types (boats, minecarts, etc.) out of scope for this sweep
+                continue;
             }
 
             var playerPos = mc.player.position();
-            // North = -Z (confirmed via Direction.NORTH's step vector, (0,0,-1)).
-            // Force the player's own look direction to face north too, via the same
-            // absMoveTo(x,y,z,yaw,pitch) "teleport with rotation" method vanilla's own
-            // /tp command uses — confirmed via decompile that it also syncs
-            // yRotO/xRotO, so there's no visible camera-snap interpolation glitch the
-            // way a bare setYRot() call alone could produce. Position args are the
-            // player's own current position (unchanged) — this only ever turns the
-            // camera, never moves the player.
+            // Face north (-Z) without moving the player.
             mc.player.absMoveTo(playerPos.x, playerPos.y, playerPos.z, 180.0f, 0.0f);
             spawned.setPos(playerPos.x, playerPos.y, playerPos.z - 4);
             spawned.setYRot(0);
@@ -214,7 +199,7 @@ public final class BlueprintCaptureSweep {
             adultCaptured = new ArrayList<>();
             babyCaptured = new ArrayList<>();
             currentTexture = null;
-            currentRendererKind = "OTHER"; // placeholder until PosePlanBuilder.build() runs and sets the real kind
+            currentRendererKind = "OTHER";
             waitTicksRemaining = SETTLE_TICKS;
             processedTypes++;
             return;
@@ -238,21 +223,16 @@ public final class BlueprintCaptureSweep {
             ageable.setBaby(true);
             babyPhase = true;
             currentPlan = null;
-            waitTicksRemaining = SETTLE_TICKS; // let the scale change actually render
+            waitTicksRemaining = SETTLE_TICKS;
             return;
         }
         exportAndDespawn();
-        testEntity = null; // next tick's onClientTick call advances to the next entity type
+        testEntity = null;
     }
 
     private static void captureCurrentPose() {
         PlannedPose pose = currentPlan.get(planIndex);
-        // Deliberately HitboxStore, not MahApi.getSnapshot — once BlueprintResolver
-        // is wired into MahApi.getSnapshot as a fallback, calling that here could
-        // read back a previously-shipped blueprint's resolved data instead of a
-        // genuinely fresh live capture, if re-running this sweep against an entity
-        // type that already has a blueprint loaded. The sweep is authoring new
-        // ground truth; it must only ever read the live capture path.
+        // Live capture only; never read back an existing blueprint.
         EntityHitboxSnapshot snap = exp.CCnewmods.khp.capture.HitboxStore.get(testEntity.getUUID());
         if (snap == null || snap.parts().isEmpty()) {
             LOGGER.warn("[KHP] Sweep: no snapshot for {} pose \"{}\" — skipped (entity may not be "
@@ -291,8 +271,6 @@ public final class BlueprintCaptureSweep {
         }
         testEntity = null;
     }
-
-    // ── Export ───────────────────────────────────────────────────────────────
 
     private static void writeBlueprint(EntityBlueprint blueprint) {
         File dir = new File(Minecraft.getInstance().gameDirectory, "config/khp/animstatecache_capture");

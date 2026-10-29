@@ -16,46 +16,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Shared geometry source for Phase 2D Part A3 (precise block/terrain collision) and
- * Phase 2D Part B (precise culling). Both features need the same thing — an entity's
- * captured parts as world-space {@link AABB}s — so it lives in one place rather than
- * being reimplemented per feature, the same way {@code SolidCollisionShapes} already
- * factors this out for Part A2's entity-vs-entity shapes.
- *
- * <h3>Why not reuse SolidCollisionShapes directly</h3>
- * {@code SolidCollisionShapes.isSolidMob} gates on {@code solid_collision_enabled} +
- * a blacklist — a deliberately different, narrower population than this class, which
- * (per design sign-off) applies to <b>any</b> living entity with a resolvable snapshot,
- * no blacklist. Folding both populations through one gate would make the broader
- * features (collision, culling) implicitly depend on the narrower one's config, which
- * is not the intended relationship. The two classes deliberately duplicate the small
- * amount of per-tick-cache/world-bounds math involved rather than share a gate that
- * would couple unrelated config surfaces.
- *
- * <h3>Resolution chain</h3>
- * Uses {@link MahApi#getSnapshot(Entity)} directly — the same live-then-blueprint
- * chain every other consumer goes through, gated by the one shared
- * {@code MahConfig.staleSnapshotTicks} window ("the same distance/staleness cutoff we
- * already have," per design sign-off) rather than a new feature-specific threshold.
- * On a dedicated server this naturally resolves via blueprint only, same as combat and
- * Part A2 collision already do.
- */
+/** World-space part boxes for any living entity with a snapshot; used by AABB resizing and culling. */
 public final class PreciseWorldParts {
 
-    /**
-     * Per-tick cache, same rationale and key shape as {@code SolidCollisionShapes.CACHE}:
-     * keyed by entity id + snapshot gameTime + the caller's maxParts cutoff (collision
-     * and culling use different caps, so a shared key would let one feature's cap
-     * silently serve stale/wrong-sized results to the other).
-     */
+    /** maxParts is in the key because collision and culling use different caps. */
     private static final Map<Long, List<AABB>> CACHE = new ConcurrentHashMap<>();
 
-    /**
-     * World-space AABB per captured part, or {@code null} if this entity should fall
-     * back to vanilla's whole-body box — no snapshot resolvable, empty part list, or
-     * more parts than {@code maxParts} (cost-control cutoff, not correctness).
-     */
+    /** {@code null} = use vanilla's box. */
     @Nullable
     public static List<AABB> resolveOrNull(Entity entity, int maxParts) {
         if (!(entity instanceof LivingEntity living) || !living.isAlive()) {
@@ -89,10 +56,6 @@ public final class PreciseWorldParts {
         return result;
     }
 
-    /**
-     * Union of all boxes — used as the query region for gathering obstacle shapes,
-     * and by {@code AabbResize} as the LIVE-mode resized box.
-     */
     public static AABB union(List<AABB> boxes) {
         AABB result = boxes.get(0);
         for (int i = 1; i < boxes.size(); i++) {
@@ -101,7 +64,6 @@ public final class PreciseWorldParts {
         return result;
     }
 
-    /** Same conservative-AABB-of-a-transformed-box approach as SolidCollisionShapes#worldBoundsOf. */
     private static AABB worldBoundsOf(PartOBB part, Vec3 currentAnchor) {
         Matrix4f worldTransform = new Matrix4f().translate(
                 (float) currentAnchor.x, (float) currentAnchor.y, (float) currentAnchor.z).mul(part.transform());

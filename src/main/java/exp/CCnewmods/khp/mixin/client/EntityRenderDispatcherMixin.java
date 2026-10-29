@@ -11,12 +11,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Opens/closes the capture bracket around every entity render. HEAD fires before the
- * dispatcher pushes its pose and applies the entity translation — exactly the basis
- * the manager needs (it re-applies the same translate itself, verified against the
- * dispatcher body in forge-1.20.1-47.4.20).
- */
+/** Opens and closes the capture bracket around every entity render. */
 @Mixin(EntityRenderDispatcher.class)
 public abstract class EntityRenderDispatcherMixin {
 

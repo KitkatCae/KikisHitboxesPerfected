@@ -8,17 +8,7 @@ import org.spongepowered.asm.mixin.extensibility.IMixinInfo;
 import java.util.List;
 import java.util.Set;
 
-/**
- * Skips every mixin in {@code mah.citadel.mixins.json} entirely when Citadel isn't
- * loaded, so MAH never attempts to transform a class that doesn't exist. Paired with
- * {@code "required": false} on the config itself as a second layer of safety.
- *
- * <p>NOTE: {@code ModList}/{@code IMixinConfigPlugin} weren't available to verify
- * against actual bytecode in this session (not present in the mapped-jar slice used
- * for the rest of MAH) — this follows the long-standing, unchanged public shape of
- * both APIs from established Forge/Mixin modding practice rather than a bytecode
- * check. Flagging per the project's verify-before-assuming rule.
- */
+/** Unused: not referenced by khp.citadel.mixins.json. Would need {@code LoadingModList} if wired in. */
 public final class CitadelMixinPlugin implements IMixinConfigPlugin {
 
     private static final String MODID = "citadel";

@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "exp.CCnewmods.khp.mixin.emf",
+  "plugin": "exp.CCnewmods.khp.mixin.emf.EmfMixinPlugin",
+  "compatibilityLevel": "JAVA_17",
+  "mixins": [
+  ],
+  "client": [
+    "EmfModelPartMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

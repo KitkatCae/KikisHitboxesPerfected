@@ -10,11 +10,7 @@ import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-/**
- * {@code /khpsweep start|stop|status} — dev-only, client-side. Drives
- * {@link BlueprintCaptureSweep}, which does the actual per-tick work; this class is
- * just the Brigadier wiring.
- */
+/** {@code /khpsweep start|stop|status} (dev only). */
 @Mod.EventBusSubscriber(modid = Mah.MODID, bus = Mod.EventBusSubscriber.Bus.FORGE, value = Dist.CLIENT)
 public final class BlueprintSweepCommand {
 

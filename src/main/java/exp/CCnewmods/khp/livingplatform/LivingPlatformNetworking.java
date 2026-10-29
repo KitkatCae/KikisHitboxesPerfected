@@ -9,20 +9,7 @@ import net.minecraftforge.network.simple.SimpleChannel;
 
 import java.util.Optional;
 
-/**
- * Owns the S2C channel for {@link LivingPlatformSyncPacket} — see that class's
- * javadoc for why this exists instead of relying on VS2's own ship sync.
- *
- * <p>The handler calls straight into {@link ClientLivingPlatformRegistry} with no
- * {@code DistExecutor}/{@code Dist} guard: this channel only ever sends S2C, so
- * the handler body genuinely never executes on a dedicated server (nothing is
- * delivered there to trigger it) — and {@code DistExecutor} itself isn't present
- * in this Forge version's jar (confirmed absent via search this session; the
- * class was dropped from modern Forge in favor of exactly this kind of lazy
- * method-body class resolution). If this assumption is wrong, the failure mode
- * is a dedicated-server crash on the very first sync packet, which would show up
- * immediately in testing, not silently.
- */
+/** S2C channel for {@link LivingPlatformSyncPacket}. */
 public final class LivingPlatformNetworking {
 
     private static final String PROTOCOL_VERSION = "1";
@@ -30,8 +17,9 @@ public final class LivingPlatformNetworking {
     public static final SimpleChannel CHANNEL = NetworkRegistry.ChannelBuilder
             .named(new ResourceLocation(Mah.MODID, "living_platform"))
             .networkProtocolVersion(() -> PROTOCOL_VERSION)
-            .clientAcceptedVersions(PROTOCOL_VERSION::equals)
-            .serverAcceptedVersions(PROTOCOL_VERSION::equals)
+            // Peers without VS2 won't have this channel at all.
+            .clientAcceptedVersions(NetworkRegistry.acceptMissingOr(PROTOCOL_VERSION))
+            .serverAcceptedVersions(NetworkRegistry.acceptMissingOr(PROTOCOL_VERSION))
             .simpleChannel();
 
     public static void register() {

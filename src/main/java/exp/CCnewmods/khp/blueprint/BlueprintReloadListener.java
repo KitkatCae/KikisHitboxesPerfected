@@ -12,18 +12,7 @@ import org.slf4j.Logger;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Loads every {@code data/khp/animstatecache/*.json} blueprint file each resource/
- * datapack reload and publishes the result into {@link BlueprintStore}.
- *
- * <p><b>Static-init ordering note</b> (project lesson, Phase 1 handoff §5, re-stated
- * here since this is the first {@code SimpleJsonResourceReloadListener} subclass in
- * KHP): {@code GSON} is declared before this class does anything else with it,
- * matching the known "GSON must precede INSTANCE" ordering trap in this exact base
- * class elsewhere in the project — not applicable verbatim here since KHP has no
- * {@code INSTANCE}-style static field, but kept as the first field for the same
- * reason: nothing below should be able to observe {@code GSON} as null.
- */
+/** Loads {@code data/khp/animstatecache/*.json}. {@code GSON} must stay the first field. */
 public final class BlueprintReloadListener extends SimpleJsonResourceReloadListener {
 
     private static final Gson GSON = new Gson();

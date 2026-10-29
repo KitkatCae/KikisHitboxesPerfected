@@ -16,23 +16,9 @@ import java.lang.reflect.Field;
 import java.util.List;
 
 /**
- * Three jobs:
- * <ol>
- *   <li>Carry the part name stamped at bake time ({@link MahNamedPart} duck).</li>
- *   <li>Maintain the render-walk path stack — HEAD/RETURN of the 8-arg render are
- *       always balanced (every entry has exactly one exit), including the early
- *       invisible/empty returns.</li>
- *   <li>Capture cubes at {@code compile} HEAD, where the pose includes this part's
- *       translateAndRotate — the exact matrix the vertices are transformed by.
- *       skipDraw parts never reach compile and are correctly not captured.</li>
- * </ol>
- *
- * <p>{@code cubes} is read via {@link MahReflect} rather than {@code @Shadow} — see
- * that class's javadoc. Vanilla ModelPart has exactly one {@code List}-typed field,
- * but that is not guaranteed once other mods mixin additional fields onto it (seen in
- * practice with Embeddium, which injects its own {@code List}-typed field for
- * bounds/culling caching) — so the lookup also pins the element type to
- * {@code ModelPart.Cube} to stay unambiguous without needing an SRG name.
+ * Stores part names, keeps the render-path stack balanced, and captures cubes at {@code compile} HEAD.
+ * {@code cubes} is found via {@link MahReflect}, pinned to {@code List<ModelPart.Cube>} since Embeddium adds
+ * other {@code List} fields.
  */
 @Mixin(ModelPart.class)
 public abstract class ModelPartMixin implements MahNamedPart {

@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "exp.CCnewmods.pih.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "pih.refmap.json",
+  "mixins": [
+    "fluid.LiquidBlockColorPickupMixin"
+  ],
+  "client": [
+    "metallic.MetallicShaderLinkMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}

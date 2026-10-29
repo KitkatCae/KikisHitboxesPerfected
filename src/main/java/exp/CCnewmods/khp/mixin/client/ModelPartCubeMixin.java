@@ -11,26 +11,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Phase 2c: computes a real per-face {@code faceMask} for vanilla cubes by wrapping
- * the {@link VertexConsumer} for exactly one {@code Cube.compile} call — see
- * {@link CubeOpacityRecorder}'s javadoc for why this reads live {@code uv()}/
- * {@code color()} calls instead of reflecting into {@code Cube}'s package-private
- * {@code Polygon}/{@code Vertex} fields (the {@code u}/{@code v} float-field
- * disambiguation problem specifically).
- *
- * <p>{@code ModelPart.compile} (see {@code ModelPartMixin}) already adds one
- * {@link exp.CCnewmods.khp.capture.PartOBB} per cube to the active bracket's part
- * list, eagerly, at its own HEAD — before any individual {@code Cube.compile} call
- * has run. This mixin's job is narrower: patch that already-added {@code PartOBB}'s
- * {@code faceMask} in place once this cube's own compile call finishes, via
- * {@link HitboxCaptureManager}'s identity-keyed cube→index correlation (built
- * alongside the eager add, not inferred from call order).
- *
- * <p>Same {@code @ModifyVariable}-at-HEAD / finalize-at-RETURN shape as
- * {@code FerrouslimeRendererMixin}'s gel-body capture — proven pattern, different
- * target.
- */
+/** Wraps one {@code Cube.compile} to record its opacity, then patches the cube's already-added part. */
 @Mixin(ModelPart.Cube.class)
 public abstract class ModelPartCubeMixin {
 

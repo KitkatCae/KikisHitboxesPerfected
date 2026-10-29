@@ -8,21 +8,7 @@ import net.minecraft.world.entity.Entity;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Discovers and forces LLibrary {@code IAnimatedEntity} animations (Mowzie's Mobs'
- * older, pre-GeckoLib creatures — Frostmaw, Naga, Grottol, Wroughtnaut per the Phase 1
- * handoff). Confirmed via {@code javap} against {@code mowziesmobs-1_8_2.jar}: every
- * method used here ({@code getAnimations}, {@code setAnimation}, {@code setAnimationTick})
- * is declared directly on the public interface, so any concrete implementing entity
- * class is guaranteed to expose them publicly (Java requires public interface-method
- * implementations) — no reflection needed, same as the GeckoLib path.
- *
- * <p>Base {@code Animation} only carries a numeric {@link Animation#getID()}; only
- * entities using {@link NamedAnimation} specifically expose a real name via
- * {@link NamedAnimation#getName()} — this class falls back to the numeric id for the
- * pose id when the entity's animations aren't named, rather than assuming every
- * LLibrary-based entity names its animations.
- */
+/** LLibrary {@code IAnimatedEntity} animations (Mowzie's Mobs' older creatures). Unnamed animations use their id. */
 public final class LLibraryAnimDiscovery {
 
     public record AnimInfo(String poseFragment, Animation animation) {
@@ -45,7 +31,7 @@ public final class LLibraryAnimDiscovery {
         return result;
     }
 
-    /** Ticks (game ticks — LLibrary's {@code getDuration()} is already tick-scaled, not seconds). */
+    /** Already in ticks. */
     public static int durationTicks(Animation animation) {
         return animation.getDuration();
     }

@@ -6,11 +6,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import yesman.epicfight.api.collider.Collider;
 
-/**
- * Shadows {@code worldCenter} on its actual declaring class, {@code Collider} —
- * see {@link MahColliderAccess}'s javadoc for why this exists as its own mixin
- * rather than each subclass mixin shadowing the field directly.
- */
+/** See {@link MahColliderAccess}. */
 @Mixin(value = Collider.class, remap = false)
 public abstract class EpicFightColliderMixin implements MahColliderAccess {
 

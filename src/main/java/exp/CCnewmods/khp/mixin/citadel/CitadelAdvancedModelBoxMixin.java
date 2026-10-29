@@ -9,16 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Captures Citadel's Tabula-style model boxes at {@code doRender} HEAD, where the
- * incoming pose already has this box's own translate + rotate applied (verified
- * against citadel-2.6.3-1.20.1: {@code render()} pushes pose, calls
- * {@code translateRotate}, then {@code doRender(matrixStack.last(), ...)}).
- *
- * <p>Third-party target: remap=false, literal names — no refmap involved, this jar's
- * names are real and stable regardless of Minecraft's own obfuscation. Only loaded
- * when Citadel is present (mah.citadel.mixins.json is "required": false).
- */
+/** Citadel's Tabula-style boxes, at {@code doRender} HEAD where the pose is already applied. */
 @Mixin(value = AdvancedModelBox.class, remap = false)
 public abstract class CitadelAdvancedModelBoxMixin {
 

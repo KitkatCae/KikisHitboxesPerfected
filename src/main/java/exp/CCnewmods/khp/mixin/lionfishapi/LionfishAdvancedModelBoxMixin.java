@@ -9,16 +9,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Captures LionfishAPI's Tabula-style model boxes (used throughout Ender's
- * Cataclysm) at {@code doRender} HEAD — structurally identical to Citadel's
- * {@code AdvancedModelBox} (verified against lionfishapi-3.0: same
- * render/translateAndRotate/doRender shape, same pre-grow {@code posX1..posZ2}
- * bounds on its {@code ModelBox}).
- *
- * <p>Third-party target: remap=false, literal names. Only loaded when LionfishAPI is
- * present (mah.lionfishapi.mixins.json is "required": false).
- */
+/** LionfishAPI's Tabula-style boxes (Ender's Cataclysm). */
 @Mixin(value = AdvancedModelBox.class, remap = false)
 public abstract class LionfishAdvancedModelBoxMixin {
 

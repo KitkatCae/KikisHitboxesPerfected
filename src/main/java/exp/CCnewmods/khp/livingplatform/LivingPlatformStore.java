@@ -5,12 +5,6 @@ import net.minecraft.resources.ResourceLocation;
 import javax.annotation.Nullable;
 import java.util.Map;
 
-/**
- * Whole-reload replacement store for {@link LivingPlatformDefinition}s, keyed by
- * entity type id — same reload-swap convention as {@code BlueprintStore}. Written
- * once per resource/datapack reload by {@link LivingPlatformReloadListener}, read
- * from gameplay code (entity tick, interaction handling) the rest of the time.
- */
 public final class LivingPlatformStore {
 
     private static volatile Map<ResourceLocation, LivingPlatformDefinition> DEFINITIONS = Map.of();
