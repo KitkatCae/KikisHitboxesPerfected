@@ -8,6 +8,7 @@ import exp.CCnewmods.khp.Mah;
 import exp.CCnewmods.khp.api.MahApi;
 import exp.CCnewmods.khp.blueprint.BlueprintPose;
 import exp.CCnewmods.khp.blueprint.BlueprintSerializer;
+import exp.CCnewmods.khp.blueprint.BlueprintStore;
 import exp.CCnewmods.khp.blueprint.EntityBlueprint;
 import exp.CCnewmods.khp.capture.EntityHitboxSnapshot;
 import net.minecraft.client.Minecraft;
@@ -83,15 +84,22 @@ public final class BlueprintCaptureSweep {
             return;
         }
         queue = new ArrayDeque<>();
+        int alreadyCovered = 0;
         for (ResourceLocation id : ForgeRegistries.ENTITY_TYPES.getKeys()) {
             if (MahConfig.blacklist.contains(id)) continue;
+            // Already has a loaded data/khp/animstatecache blueprint (adult file; babies fall back to it).
+            if (BlueprintStore.has(id, false)) {
+                alreadyCovered++;
+                continue;
+            }
             queue.add(id);
         }
         totalTypes = queue.size();
         processedTypes = 0;
         testEntity = null;
         running = true;
-        LOGGER.info("[KHP] Sweep started — {} entity types queued.", totalTypes);
+        LOGGER.info("[KHP] Sweep started — {} entity types queued, {} skipped (already have a blueprint).",
+                totalTypes, alreadyCovered);
         warnIfModelsCanBeReplaced();
     }
 
