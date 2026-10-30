@@ -9,8 +9,11 @@ import exp.CCnewmods.khp.capture.HitboxCaptureManager;
 import exp.CCnewmods.khp.capture.HitboxRaycaster;
 import exp.CCnewmods.khp.capture.HitboxStore;
 import exp.CCnewmods.khp.capture.PartOBB;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -267,14 +270,15 @@ public final class MahApi {
                 part.getType(), part.getUUID(), String.format("%.2f", distance), MahConfig.partBoneMismatchWarnDistance);
     }
 
-    /** Listed in combat_blueprint_allowlist, or (list empty) the blueprint is VANILLA_LIVING. */
+    /**
+     * Entity types whose blueprints combat may use when no live snapshot is fresh. The only source of trust:
+     * anything not in this tag falls back to its vanilla box.
+     */
+    public static final TagKey<EntityType<?>> COMBAT_BLUEPRINT_TRUSTED =
+            TagKey.create(Registries.ENTITY_TYPE, new ResourceLocation(Mah.MODID, "combat_blueprint_trusted"));
+
     private static boolean isCombatBlueprintTrusted(Entity entity) {
-        ResourceLocation typeId = entityTypeKey(entity);
-        if (!MahConfig.combatBlueprintAllowlist.isEmpty()) {
-            return MahConfig.combatBlueprintAllowlist.contains(typeId);
-        }
-        var blueprint = BlueprintResolver.lookupBlueprint(entity);
-        return blueprint != null && "VANILLA_LIVING".equals(blueprint.rendererKind());
+        return entity.getType().is(COMBAT_BLUEPRINT_TRUSTED);
     }
 
     /** Combat-trusted {@link #raycastEntity}; {@code null} means use vanilla hit-testing. */

@@ -57,17 +57,9 @@ public final class MahConfig {
     private static final ForgeConfigSpec.IntValue COMBAT_STALE_SNAPSHOT_TICKS = COMMON_BUILDER
             .comment("Staleness window used by combat hit tests (vanilla melee and arrows, TACZ, Epic",
                     "Fight). Much tighter than stale_snapshot_ticks, since combat needs the pose at the",
-                    "instant of the hit.")
+                    "instant of the hit. Past this, only entity types in the #khp:combat_blueprint_trusted",
+                    "entity type tag fall back to blueprint geometry; everything else uses its vanilla box.")
             .defineInRange("combat_stale_snapshot_ticks", 4, 0, 1200);
-
-    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> COMBAT_BLUEPRINT_ALLOWLIST = COMMON_BUILDER
-            .comment("Entity type ids allowed to use blueprint (non-live) geometry in combat when no live",
-                    "snapshot is fresh within combat_stale_snapshot_ticks. Entities not allowed fall back",
-                    "to their vanilla hitbox rather than risk a wrong-pose hit.",
-                    "Empty (default) = automatic: entities whose blueprint was captured from a vanilla-style",
-                    "model (the only kind with walk/attack pose matching) are trusted. Add modded entity ids",
-                    "here to trust their blueprints once you've checked they're accurate enough.")
-            .defineListAllowEmpty("combat_blueprint_allowlist", List.of(), o -> o instanceof String s && ResourceLocation.tryParse(s) != null);
 
     private static final ForgeConfigSpec.DoubleValue MIN_PART_THICKNESS = COMMON_BUILDER
             .comment("Minimum thickness (blocks) of every captured part's box on every axis; thinner parts",
@@ -225,7 +217,6 @@ public final class MahConfig {
     public static volatile boolean captureLayers = false;
     public static volatile int staleSnapshotTicks = 100;
     public static volatile int combatStaleSnapshotTicks = 4;
-    public static volatile Set<ResourceLocation> combatBlueprintAllowlist = Set.of();
     public static volatile boolean debugRender = false;
     public static volatile double opacityThreshold = 2.0 / 255.0;
     public static volatile double minPartThickness = 0.9;
@@ -270,12 +261,6 @@ public final class MahConfig {
             captureLayers = CAPTURE_LAYERS.get();
             staleSnapshotTicks = STALE_SNAPSHOT_TICKS.get();
             combatStaleSnapshotTicks = COMBAT_STALE_SNAPSHOT_TICKS.get();
-            Set<ResourceLocation> cba = new HashSet<>();
-            for (String s : COMBAT_BLUEPRINT_ALLOWLIST.get()) {
-                ResourceLocation rl = ResourceLocation.tryParse(s);
-                if (rl != null) cba.add(rl);
-            }
-            combatBlueprintAllowlist = Set.copyOf(cba);
             opacityThreshold = OPACITY_THRESHOLD.get();
             minPartThickness = MIN_PART_THICKNESS.get();
             partBoneMismatchWarnDistance = PART_BONE_MISMATCH_WARN_DISTANCE.get();
