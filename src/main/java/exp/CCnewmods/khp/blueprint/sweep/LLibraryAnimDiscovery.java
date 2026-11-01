@@ -23,10 +23,12 @@ public final class LLibraryAnimDiscovery {
         if (!(entity instanceof IAnimatedEntity animated)) return result;
         Animation[] animations = animated.getAnimations();
         if (animations == null) return result;
-        for (Animation anim : animations) {
-            if (anim == null) continue;
-            String fragment = anim instanceof NamedAnimation named ? named.getName() : "id" + anim.getID();
-            result.add(new AnimInfo(fragment, anim));
+        String[] fragments = AnimFragmentNames.assign(animations.length,
+                i -> animations[i] instanceof NamedAnimation named ? named.getName() : null,
+                i -> animations[i].getID(), i -> animations[i] == null);
+        for (int i = 0; i < animations.length; i++) {
+            if (animations[i] == null) continue;
+            result.add(new AnimInfo(fragments[i], animations[i]));
         }
         return result;
     }

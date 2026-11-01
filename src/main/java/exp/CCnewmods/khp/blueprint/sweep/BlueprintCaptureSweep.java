@@ -50,6 +50,8 @@ public final class BlueprintCaptureSweep {
     private static final Gson EXPORT_GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private static final int SETTLE_TICKS = 5;
+    /** Times a pose is re-applied when no live snapshot newer than the apply arrives (e.g. not rendered yet). */
+    private static final int MAX_CAPTURE_ATTEMPTS = 10;
 
     private static final Map<PlannedPose, Integer> EXTRA_WAIT = new IdentityHashMap<>();
 
@@ -72,6 +74,8 @@ public final class BlueprintCaptureSweep {
     private static int planIndex;
     private static int waitTicksRemaining;
     private static boolean awaitingCapture;
+    private static long poseAppliedAt;
+    private static int captureAttempts;
 
     private static List<BlueprintPose> adultCaptured = new ArrayList<>();
     private static List<BlueprintPose> babyCaptured = new ArrayList<>();
@@ -146,7 +150,10 @@ public final class BlueprintCaptureSweep {
             return;
         }
         if (awaitingCapture) {
-            captureCurrentPose();
+            if (!captureCurrentPose() && captureAttempts < MAX_CAPTURE_ATTEMPTS) {
+                applyCurrentPose(); // retry from scratch so time-sampled poses keep their offset
+                return;
+            }
             awaitingCapture = false;
             advanceToNextPose();
             return;
@@ -220,8 +227,15 @@ public final class BlueprintCaptureSweep {
             finishPhase();
             return;
         }
+        captureAttempts = 0;
+        applyCurrentPose();
+    }
+
+    private static void applyCurrentPose() {
         PlannedPose pose = currentPlan.get(planIndex);
         pose.apply().apply(testEntity);
+        poseAppliedAt = testEntity.level().getGameTime();
+        captureAttempts++;
         waitTicksRemaining = 1 + extraWaitFor(pose);
         awaitingCapture = true;
     }
@@ -238,21 +252,26 @@ public final class BlueprintCaptureSweep {
         testEntity = null;
     }
 
-    private static void captureCurrentPose() {
+    /** @return false if no live snapshot rendered after the pose was applied (caller may retry). */
+    private static boolean captureCurrentPose() {
         PlannedPose pose = currentPlan.get(planIndex);
-        // Live capture only; never read back an existing blueprint.
+        // Live capture only; never read back an existing blueprint. A snapshot from before the apply is the
+        // previous pose (or nothing, right after spawning), so it doesn't count.
         EntityHitboxSnapshot snap = exp.CCnewmods.khp.capture.HitboxStore.get(testEntity.getUUID());
-        if (snap == null || snap.parts().isEmpty()) {
-            LOGGER.warn("[KHP] Sweep: no snapshot for {} pose \"{}\" — skipped (entity may not be "
-                    + "rendering, or this capture path isn't supported for this entity type).",
-                    MahApi.entityTypeKey(testEntity), pose.poseId());
-            return;
+        if (snap == null || snap.parts().isEmpty() || snap.gameTime() <= poseAppliedAt) {
+            if (captureAttempts >= MAX_CAPTURE_ATTEMPTS) {
+                LOGGER.warn("[KHP] Sweep: no fresh snapshot for {} pose \"{}\" after {} attempts — skipped "
+                        + "(entity may not be rendering, or this capture path isn't supported for this entity "
+                        + "type).", MahApi.entityTypeKey(testEntity), pose.poseId(), captureAttempts);
+            }
+            return false;
         }
         if (currentTexture == null && snap.texture() != null) {
             currentTexture = snap.texture();
         }
         BlueprintPose bp = new BlueprintPose(pose.poseId(), snap.parts());
         (babyPhase ? babyCaptured : adultCaptured).add(bp);
+        return true;
     }
 
     private static void exportAndDespawn() {
@@ -281,6 +300,12 @@ public final class BlueprintCaptureSweep {
     }
 
     private static void writeBlueprint(EntityBlueprint blueprint) {
+        if (blueprint.pose("rest") == null) {
+            // BlueprintReloadListener rejects these, so don't export a file that would silently never load.
+            LOGGER.error("[KHP] Sweep: {} (baby={}) has no \"rest\" pose — not exported. Re-run the sweep for it.",
+                    blueprint.entityType(), blueprint.baby());
+            return;
+        }
         File dir = new File(Minecraft.getInstance().gameDirectory, "config/khp/animstatecache_capture");
         if (!dir.exists() && !dir.mkdirs()) {
             LOGGER.error("[KHP] Sweep: failed to create export directory {}", dir);

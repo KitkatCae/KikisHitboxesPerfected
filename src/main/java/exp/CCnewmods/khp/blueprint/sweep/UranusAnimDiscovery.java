@@ -22,9 +22,11 @@ public final class UranusAnimDiscovery {
         if (!(entity instanceof IAnimatedEntity animated)) return result;
         Animation[] animations = animated.getAnimations();
         if (animations == null) return result;
-        for (Animation anim : animations) {
-            if (anim == null) continue;
-            result.add(new AnimInfo("id" + anim.getID(), anim));
+        String[] fragments = AnimFragmentNames.assign(animations.length, i -> null,
+                i -> animations[i].getID(), i -> animations[i] == null);
+        for (int i = 0; i < animations.length; i++) {
+            if (animations[i] == null) continue;
+            result.add(new AnimInfo(fragments[i], animations[i]));
         }
         return result;
     }
